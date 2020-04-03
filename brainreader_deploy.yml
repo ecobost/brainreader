@@ -1,0 +1,66 @@
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: brainreader
+spec:
+  completions: 25  # how many actual completions of that jobs I want (should be >= parallelism)
+  parallelism: 25  # how many process in parallel I want
+  backoffLimit: 25 # number of failures before it kills the job (and all its pods)
+  template:
+    spec:
+      restartPolicy: Never
+      hostNetwork: true # This option will allow the pod to use the host network for internet access
+      hostIPC: true  # for parallel dataloaders
+      #priorityClassName: low-priority
+      containers:
+      - name: brainreader # Container name (Can be set to whatever)
+        image: ecobost/brainreader
+        volumeMounts:
+        - name: mnt
+          mountPath: /mnt
+        resources:
+          limits:
+            nvidia.com/gpu: 1
+#          requests:
+#            memory: 32Gi
+#            cpu: 6 
+        env:
+        - name: DJ_HOST
+          valueFrom:
+            secretKeyRef:
+              name: dj-login
+              key: DJ_HOST
+        - name: DJ_USER
+          valueFrom:
+            secretKeyRef:
+              name: dj-login
+              key: DJ_USER
+        - name: DJ_PASS
+          valueFrom:
+            secretKeyRef:
+              name: dj-login
+              key: DJ_PASS
+        - name: GITHUB_USERNAME
+          valueFrom:
+            secretKeyRef:
+              name: github-login
+              key: USERNAME
+        - name: GITHUB_PASSWORD
+          valueFrom:
+            secretKeyRef:
+              name: github-login
+              key: PASSWORD
+        command: ["/bin/bash"]
+        args: ["-c", 
+               "rm -r /src/brainreader && git clone https://github.com/ecobost/brainreader.git /src/brainreader && python3 /src/brainreader/kubernetes_script.py"]
+      imagePullSecrets:  # to pull private images
+        - name: docker-login
+      volumes:
+      - name: mnt
+        hostPath:
+          path: /mnt
+      tolerations:
+      - key: "gpu"
+        operator: "Equal"
+        value: "true"
+        effect: "NoSchedule"
