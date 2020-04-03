@@ -3,15 +3,15 @@ kind: Job
 metadata:
   name: brainreader
 spec:
-  completions: 25  # how many actual completions of that jobs I want (should be >= parallelism)
-  parallelism: 25  # how many process in parallel I want
-  backoffLimit: 25 # number of failures before it kills the job (and all its pods)
+  completions: 80  # how many actual completions of that jobs I want (should be >= parallelism)
+  parallelism: 80  # how many process in parallel I want
+  backoffLimit: 80 # number of failures before it kills the job (and all its pods)
   template:
     spec:
       restartPolicy: Never
       hostNetwork: true # This option will allow the pod to use the host network for internet access
       hostIPC: true  # for parallel dataloaders
-      #priorityClassName: low-priority
+      priorityClassName: low-priority # comment to deploy as default priority
       containers:
       - name: brainreader # Container name (Can be set to whatever)
         image: ecobost/brainreader
