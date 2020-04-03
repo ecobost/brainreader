@@ -3,4 +3,4 @@
 
 # Training initial models
 from brainreader import train
-train.TrainedModel.populate()
+train.TrainedModel.populate(reserve_jobs=True)
