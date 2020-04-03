@@ -1,0 +1,40 @@
+version: '2.3'
+services:
+
+  notebook:
+    runtime: nvidia
+    image: ecobost/brainreader
+    env_file: ../.env
+    ports:
+      - "7777:8888"
+    volumes:
+      - /mnt:/mnt
+      - /tmp:/tmp
+      - .:/src/brainreader
+      - ../featurevis:/src/featurevis
+    environment:
+      - DISPLAY=$DISPLAY
+    entrypoint:
+      - jupyter 
+      - lab
+      - --ip=0.0.0.0
+      - --allow-root
+      - --NotebookApp.token=''
+      - --no-browser
+    working_dir: /src/brainreader
+    ipc: host # needed for multiprocessing (dataloader) in pytorch 
+
+  bash:
+    runtime: nvidia
+    image: ecobost/brainreader
+    env_file: ../.env
+    volumes:
+      - /mnt:/mnt
+      - /tmp:/tmp
+      - .:/src/brainreader
+      - ../featurevis:/src/featurevis
+    environment:
+      - DISPLAY=$DISPLAY
+    entrypoint: /bin/bash
+    working_dir: /src/brainreader
+    ipc: host # needed for multiprocessing (dataloader) in pytorch
