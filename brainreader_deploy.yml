@@ -52,7 +52,7 @@ spec:
               key: PASSWORD
         command: ["/bin/bash"]
         args: ["-c", 
-               "rm -r /src/brainreader && git clone https://github.com/ecobost/brainreader.git /src/brainreader && python3 /src/brainreader/kubernetes_script.py"]
+               "rm -r /src/brainreader && git clone https://$(GITHUB_USERNAME):$(GITHUB_PASSWORD)@github.com/ecobost/brainreader.git /src/brainreader && python3 /src/brainreader/kubernetes_script.py"]
       imagePullSecrets:  # to pull private images
         - name: docker-login
       volumes:
