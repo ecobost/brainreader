@@ -52,6 +52,9 @@ ADD ./setup.py /src/brainreader/setup.py
 ADD ./brainreader /src/brainreader/brainreader
 RUN pip3 install -e /src/brainreader
 
+# Install extra libraries (non-essential but useful)
+RUN apt install -y git nano
+
 # Clean apt lists
 RUN rm -rf /var/lib/apt/lists/*
 
