@@ -44,9 +44,9 @@ class ResponseNormalization(dj.Lookup):
 class TestImages(dj.Lookup):
     definition = """ # how to create the test set
 
-    test_set:           varchar(16)
+    test_set:       varchar(16)
     ---
-    description:        varchar(256)
+    description:    varchar(256)
     """
     contents = [
         {'test_set': 'repeats',
@@ -245,11 +245,11 @@ class TrainingParams(dj.Lookup):
     num_epochs:         int         # number of trainig epochs through the dataset
     val_epochs:         smallint    # run validation every this number of epochs
     batch_size:         smallint    # number of images in each batch
-    learning_rate:      float       # initial learning rate for the optimizer
-    momentum:           float       # momentum factor for SGD updates
-    weight_decay:       float       # weight for l2 regularization
+    learning_rate:      decimal(5, 3) # initial learning rate for the optimizer
+    momentum:           decimal(3, 2) # momentum factor for SGD updates
+    weight_decay:       decimal(7, 5) # weight for l2 regularization
     loss_function:      varchar(8)  # loss function to use ('mse' or 'poisson')
-    lr_decay:           float       # factor multiplying learning rate when decreasing
+    lr_decay:           decimal(2, 2) # factor multiplying learning rate when decreasing
     decay_epochs:       smallint    # number of epochs to wait before decreasing learning rate if val loss has not improved
     """
     @property

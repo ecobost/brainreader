@@ -98,11 +98,11 @@ class TrainedModel(dj.Computed):
         model.cuda()
 
         # Declare optimizer
-        optimizer = optim.SGD(model.parameters(), lr=train_params['learning_rate'],
-                              momentum=train_params['momentum'], nesterov=True,
-                              weight_decay=train_params['weight_decay'])
+        optimizer = optim.SGD(model.parameters(), lr=float(train_params['learning_rate']),
+                              momentum=float(train_params['momentum']), nesterov=True,
+                              weight_decay=float(train_params['weight_decay']))
         scheduler = lr_scheduler.ReduceLROnPlateau(optimizer,
-                                                   factor=train_params['lr_decay'],
+                                                   factor=float(train_params['lr_decay']),
                                                    patience=int(round(
                                                        train_params['decay_epochs'] /
                                                        train_params['val_epochs'])),
@@ -282,9 +282,8 @@ class Evaluation(dj.Computed):
 
         # Insert
         self.insert1({**key, 'test_corr': corr})
+        
 
-
-#TODO: Should I change the keys in Ensemble to be something like ensemble_id or ensemble name
 @schema
 class Ensemble(dj.Computed):
     definition = """ # group of models that form an ensemble
@@ -321,6 +320,7 @@ class Ensemble(dj.Computed):
             # Find all training configs that differ only in seed
             training_params = (params.TrainingParams &
                                {'training_params': key['ensemble_training']}).fetch1()
+            del training_params['training_params'] # ignore the specific training params
             del training_params['seed'] # ignore seed
             training_keys = (params.TrainingParams & training_params).proj()
 
@@ -358,6 +358,23 @@ class Ensemble(dj.Computed):
         ensemble = models.Ensemble(models)
 
         return ensemble
+    
+#TODO: 
+# class AverageSingleEnsembleEvaluations:
+#     definition = """ # takes correlation from each model in an ensemble and averages them
+#     -> Ensemble
+#     ---
+#     avg_val_corr:
+#     avg_test_corr
+#     """
+#     def make(self, key):
+#         """ Ensemble evaluation averages the model responses and computes correlations afterwards, 
+#        this uses the correlation per model (computed in Evalution) and averages afterwards.
+#        """
+#         val_corrs = (TrainedModel & Ensemble.OneModel & key)).fetch('best_val_corr')
+#         test_corrs = (TrainedModel & Ensemble.OneModel & key)).fetch('best_val_corr')
+#         self.insert1({**key, 'mean_val_corr': val_corrs.mean(), 
+#                       'std_val_corrs': val_corrs.std()})
 
 
 @schema
