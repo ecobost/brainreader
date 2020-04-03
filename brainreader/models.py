@@ -73,8 +73,8 @@ class VGG(nn.Module):
 
     def forward(self, input_):
         if self.resized_img_dims > 0:
-            input_ = F.interpolate(input_, size=self.resized_img_dims, mode='bilinear', 
-                                   align_corners=False)  # align_corners is just to avoid warnings 
+            input_ = F.interpolate(input_, size=self.resized_img_dims, mode='bilinear',
+                                   align_corners=False)  # align_corners is just to avoid warnings
         return self.layers(input_)
 
     def init_parameters(self):
@@ -229,7 +229,7 @@ class MultipleLinear(nn.Module):
             self.bias = nn.Parameter(torch.zeros(num_inputs, out_features))
         else:
             self.register_parameter('bias', None)  # not sure what this does but it is recommended
-            
+
         self.init_parameters()
 
     def forward(self, input_):
@@ -245,11 +245,10 @@ class MultipleLinear(nn.Module):
             self.weight.normal_(0, math.sqrt(2 / self.weight.shape[-1]))  # He initialization
         if self.bias is not None:
             nn.init.constant_(self.bias, 0)
-            
+
     def extra_repr(self):
         return 'num_inputs={}, in_features={}, out_features={}, bias={}'.format(
             self.num_inputs, self.in_features, self.out_features, self.bias is not None)
-
 
 
 class MultipleBatchnorm(nn.BatchNorm1d):
@@ -421,8 +420,8 @@ class Ensemble(nn.Module):
             input and output channels.
     """
     def __init__(self, models):
-        #TODO: Maybe add neuron_idx and average_batch
-        self.models = models
+        super().__init__()
+        self.models = nn.ModuleList(models)
 
     def forward(self, input_):
         return torch.stack([m(input_) for m in self.models]).mean(0)
