@@ -118,7 +118,7 @@ class TrainedModel(dj.Computed):
         best_epoch = 0
         best_corr = -1
         best_loss = float('inf')
-        start_time = time.time()  # in seconds       
+        start_time = time.time()  # in seconds
 
         # Train
         for epoch in range(1, train_params['num_epochs'] + 1):
@@ -244,11 +244,11 @@ class TrainedModel(dj.Computed):
 
         # Get model
         model = (params.ModelParams & self).get_model(num_cells)
-        
+
         # Load saved weights
         state_dict = {k: torch.as_tensor(v) for k, v in self.fetch1('best_model').items()}
         model.load_state_dict(state_dict)
-        
+
         return model
 
 
@@ -282,7 +282,7 @@ class Evaluation(dj.Computed):
 
         # Insert
         self.insert1({**key, 'test_corr': corr})
-        
+
 
 @schema
 class Ensemble(dj.Computed):
@@ -348,33 +348,12 @@ class Ensemble(dj.Computed):
         from brainreader import models
 
         # Get models
-        models = [(TrainedModel & key).get_model() for key in (Ensemble.OneModel &
-                                                               self).proj()]
-
-        #TODO: Maybe check whether restrictions now propagate to part tables
-        # so self.OneModel == (Ensemble.OneModel & self)
+        models_ = [(TrainedModel & key).get_model() for key in (Ensemble.OneModel & self)]
 
         # Create Ensemble model
-        ensemble = models.Ensemble(models)
+        ensemble = models.Ensemble(models_)
 
         return ensemble
-    
-#TODO: 
-# class AverageSingleEnsembleEvaluations:
-#     definition = """ # takes correlation from each model in an ensemble and averages them
-#     -> Ensemble
-#     ---
-#     avg_val_corr:
-#     avg_test_corr
-#     """
-#     def make(self, key):
-#         """ Ensemble evaluation averages the model responses and computes correlations afterwards, 
-#        this uses the correlation per model (computed in Evalution) and averages afterwards.
-#        """
-#         val_corrs = (TrainedModel & Ensemble.OneModel & key)).fetch('best_val_corr')
-#         test_corrs = (TrainedModel & Ensemble.OneModel & key)).fetch('best_val_corr')
-#         self.insert1({**key, 'mean_val_corr': val_corrs.mean(), 
-#                       'std_val_corrs': val_corrs.std()})
 
 
 @schema
@@ -403,7 +382,6 @@ class EnsembleEvaluation(dj.Computed):
         model = (Ensemble & key).get_model()
         model.eval()
         model.cuda()
-        #TODO: check that eval and cuda can be executed on the ensemble (and each model is changed to eval and cuda)
 
         # Compute correlation
         with torch.no_grad():
@@ -421,3 +399,33 @@ class EnsembleEvaluation(dj.Computed):
 
         # Insert
         self.insert1({**key, 'val_corr': val_corr, 'test_corr': test_corr})
+
+
+@schema
+class AverageEvaluationInEnsemble(dj.Computed):
+    definition = """ # takes correlation from each model in an ensemble and averages them
+    -> Ensemble
+    ---
+    val_corr:       float       # average val correlation across all models in this ensemble
+    test_corr:      float       # average test correlation across all models in this ensemble
+    val_corrs:      longblob    # all validation correlations in this ensemble
+    test_corrs:     longblob    # all test correlations in this ensemble
+    std_val_corrs:  float       # standard deviation across validation correlations
+    std_test_corrs: float       # standard deviation across test correlations
+    """
+
+    def make(self, key):
+        """ 
+        Ensemble evaluation averages the model responses and computes correlations 
+        afterwards, this averges the single model correlations computed in Evaluation. It 
+        does not do any processing.
+        """
+        # Get corrs
+        models = (Ensemble.OneModel & key)
+        val_corrs, test_corrs = (TrainedModel * Evaluation & models).fetch('best_corr', 
+                                                                           'test_corr')
+
+        # Insert
+        self.insert1({**key, 'val_corr': val_corrs.mean(), 'val_corrs': val_corrs,
+                      'std_val_corrs': val_corrs.std(), 'test_corr': test_corrs.mean(),
+                      'test_corrs': test_corrs, 'std_test_corrs': test_corrs.std()})
