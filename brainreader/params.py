@@ -182,7 +182,7 @@ class DataParams(dj.Lookup):
         # Get all responses
         responses = (data.Responses.ImageResponses & {'dset_id': dset_id}).fetch(
             'response', order_by='image_class, image_id')
- 
+
         # Restrict to right split and average
         if split is not None:
             img_mask = self.get_image_mask(dset_id, split)
@@ -332,11 +332,18 @@ class AverageAggParams(dj.Lookup):
     """
     contents = [{'agg_id': 1}, ]
 
+
+@schema
+class PointAggParams(dj.Lookup):
+    definition = """ # samples features at a single spatial position
+    agg_id:             smallint    # id for the aggregator
+    """
+    contents = [{'agg_id': 1}, ]
+
+
 class FactorizedAggParams():
     pass
-class SinglePointAggParams():
-    #add a parameter if I also want to model std
-    pass
+
 
 @schema
 class MLPParams(dj.Lookup):
@@ -383,13 +390,12 @@ class ModelParams(dj.Lookup):
     @property
     def contents(self):
         cores = [('vgg', 1)]
-        aggregators = [('avg', 1)]
+        aggregators = [('avg', 1), ('point', 1)]
         for i, ((ct, cid), (at, aid)) in enumerate(itertools.product(cores, aggregators),
                                                    start=1):
             yield {'model_params': i, 'core_type': ct, 'core_id': cid, 'agg_type': at,
                    'agg_id': aid, 'readout_type': 'mlp', 'readout_id': 1,
                    'act_type': 'none', 'act_id': 1}
-        #TODO: Add other aggregators first and then other
 
     def get_model(self, num_cells, in_channels=1, out_channels=1):
         """ Builds a network with the desired modules
@@ -434,8 +440,7 @@ class ModelParams(dj.Lookup):
         readout_type = self.fetch1('readout_type')
         if readout_type == 'mlp':
             hf, ub = (MLPParams & self).fetch1('hidden_features', 'use_batchnorm')
-            num_features = [core.out_channels, *hf,
-                            out_channels]  # add input and output channels
+            num_features = [core.out_channels, *hf, out_channels]  # add input and output channels
             readout_kwargs = {'num_features': num_features, 'use_batchnorm': ub}
         else:
             raise NotImplementedError(f'Readout {readout_type} not implemented.')
@@ -450,8 +455,8 @@ class ModelParams(dj.Lookup):
         final_model = models.CorePlusReadout(core, aggregator, readout, final_activation)
 
         return final_model
-    
-    
+
+
 ######################################################################################
 @schema
 class EnsembleParams(dj.Lookup):

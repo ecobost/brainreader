@@ -52,8 +52,7 @@ class VGG(nn.Module):
         # Save some params
         self.resized_img_dims = resized_img_dims
         self.in_channels = in_channels
-        self.out_channels = features_per_block[
-            -1]  # TODO: check whether out_channels will be used (otherwise drop it)
+        self.out_channels = features_per_block[-1]
 
         # Create the layers
         layers = []
@@ -109,7 +108,7 @@ def build_extractor(type_='vgg', **kwargs):
 # Output: num_cells x c
 class AverageAggregator(nn.Module):
     """ Averages the feature maps across the spatial dimensions.
-
+    
     Arguments:
         num_cells (int): Number of cells in the output. Each cell has the same feature 
             vector.
@@ -126,56 +125,153 @@ class AverageAggregator(nn.Module):
     def init_parameters(self):
         pass
 
+    def get_masks(self, in_height, in_width):
+        """ Creates the mask each cell applies to the intermediate representation.
+        
+        This is a flat mask with the same weight everywhere.
+        
+        Arguments:
+            in_height (int): Height of the input to this aggregator.
+            in_width (int): Width of the input_ to this aggregator.
+            
+        Returns:
+            A (num_cells, in_height, in_width) tensor with the mask that each cell applied 
+            to the intermediate representation to obtain its feature vector.
+        """
+        masks = torch.ones(self.num_cells, in_height, in_width) / (in_height * in_width)
+        return masks
 
-class SinglePointAggregator(nn.Module):
+
+class PointAggregator(nn.Module):
     """ Takes the channels at a single x, y position.
 
     Arguments:
-        num_cells (int): Number of cells in the output
+        num_cells (int): Number of cells in the output.
+        
+    Note:
+        We use grid_sample with align_corners=False; for info of how the sampling happens, 
+        check: https://github.com/pytorch/pytorch/issues/20785#issuecomment-494663754
     """
     def __init__(self, num_cells):
-        self.xy_positions = nn.Parameter(torch.zeros(num_cells, 2))
+        super().__init__()
+        self._xy_positions = nn.Parameter(torch.zeros(num_cells, 2))
 
-    def forward(self):
-        # grid sample each cells x, y
-        pass
+    @property
+    def xy_positions(self):
+        """Transforms the internal self._xy_positions to [-1, 1] range"""
+        return torch.tanh(self._xy_positions)
+
+    def forward(self, input_):
+        grid = self.xy_positions.expand(input_.shape[0], 1, -1, -1)
+        samples = F.grid_sample(input_, grid, padding_mode='border', align_corners=False)
+        samples = samples.squeeze(-2).transpose(-1, -2)
+        return samples
 
     def init_parameters(self):
-        #TODO: Probably better to be a noirmal around 0
-        nn.init.constant_(self.xy_positions, 0)
-    #TODO: How about let the variables be in the normal range and transforming them to [-1, 1] with a tanh after
-    # + regularization may work better
-    # +  I don't need to use clamp when the numbers go above 1 (which kills the gradient)
-    #+ cell positions are not supposed to be acccesible anyway, they are internal to this aggregator
-    #TODO: Check the implementation from multi21
+        nn.init.normal_(self._xy_positions, mean=0, std=0.25)
 
-    #TODO:
-    def get_xy(self, height=128, width=28):
-        #returns the x, y positions of each cell
-        # define something similar for the other aggregators
-        # or maybe return a mask of how stuff got aggregated (so this one will have a single point)
-        # mask will be harder for this one but maybe i do that rather than using grid sampling.
-        # so instead of grid_sampling I create a mask  based on the xy_positions and go from there
-        pass
+    def get_masks(self, in_height, in_width):
+        """ Creates the mask each cell applies to the intermediate representation.
+        
+        Weights for each coordinate in the mask are zero everywhere except for the four 
+        corners surrounding the interpolation point (xy_position). For any of this four
+        corners, the weight is the area of the square counterdiagonal to it. Check 
+        Wikipedia for an illustration.
+        
+        Arguments:
+            in_height (int): Height of the input to this aggregator.
+            in_width (int): Width of the input_ to this aggregator.
+            
+        Returns:
+            A (num_cells, in_height, in_width) tensor with the mask that each cell applied 
+            to the intermediate representation to obtain its feature vector.
+        """
+        # Compute distance of each x, y coordinate in the image to the xy_positions
+        x = torch.arange(in_width) + 0.5
+        y = torch.arange(in_height) + 0.5
+        xy_points = ((self.xy_positions + 1) / 2) * torch.tensor([in_width, in_height])  # in [0, h] or [0, w] coords
+        x_dists = torch.abs(xy_points[:, 0, None] - x)  # num_cells x in_width
+        y_dists = torch.abs(xy_points[:, 1, None] - y)  # num_cells x in_height
+
+        # Compute the weights (restricted to points that are closer than 1)
+        x_dists = 1 - torch.clamp(x_dists, max=1)
+        y_dists = 1 - torch.clamp(y_dists, max=1)
+        masks = y_dists[:, :, None] * x_dists[:, None, :]  # num_cells x in_height x in _width
+
+        # Fix masks for padding_mode=borders (drop if using padding_mode=zero)
+        masks = masks / masks.sum(dim=(-1, -2), keepdim=True)
+        # this works because all xy_positions are restricted to [-1, 1]
+
+        return masks
+
 
 class GaussianAggregator(nn.Module):
-    # Create a h x w mask
-    # normalize the mask
-    # Multiply input_ * mask and then sum over the hxw axes
-    #   other option is to flatten the last two dimensions (with view), flatten the mask and
-    #   use matrix multiplication to multiply and sum.
+    """ Uses a (learned) gaussian mask to average the feature maps in the input.
+    
+    Arguments:
+        num_cells (int): Number of cells in the output.
     """
-    take a window, compute the x, y at each position, pass it through the gaussian window
-    and that will give me the weight at each x,y and multiply that by the feature map and average."""
-    pass
+    def __init__(self, num_cells):
+        super().__init__()
+        self._xy_mean = nn.Parameter(torch.zeros(num_cells, 2))
+        self._xy_std = nn.Parameter(torch.zeros(num_cells, 2))
+        self._xy_cov = nn.Parameter(torch.zeros(num_cells))
+
+    @property
+    def xy_mean(self):
+        """ Returns mean of the gaussian window in [-1, 1] range."""
+        return torch.tanh(self._xy_mean)
+
+    @property
+    def covariance_matrix(self):
+        """Returns the 2x2 covariance matrix for each cell."""
+        xy_std = torch.exp(self._xy_std)
+        xy_covariance # wjhat  range for covariance
+        #TODO
+        pass
+
+    def forward(self, input_):
+        masks = self.get_masks(*input_.shape[-2:])
+        samples = (input_.unsqueeze(-3) * masks).sum(dim=(-1, -2)).transpose(-1, -2)
+        return samples
+
+    def init_parameters(self):
+        nn.init.normal_(self._xy_mean, mean=0, std=0.25)
+        nn.init.normal_(self._xy_std)
+        nn.init.constant_(self._xy_cov, 0)
+        #TODO
+
+    def get_masks(self, in_height, in_width):
+
+        # Get coordinates of input in [-1, 1] range
+        x = torch.arange(in_width)
+        y = torch.arange(in_height)
+
+        # Compute gaussian mask
+        masks = utils.gaussian(x, y, mean=self.xy_mean, cov=self.covariance_matrix)
+
+        # Normalize
+        masks = masks / masks.sum(dim=(-1, -2))
+
+        return masks
+
+# maybe do correlation rather than covariance that way i can restric it to -1, 1
+# or transform the _xy_cov into correlation -> covariance.
+
+# do i need to prevent too small stds (scaling may get rid of this restriction)
+
+# overall resolution may not matter, something that is std_x5, std_y5 will give  the same mask as std_x=2, std_y=2 (need to think abotut covariance though)
+
 
 class FactorizedAggregator(nn.Module):
+    #TODO: Given that the mask will be restricted to sum up to 1, i can restrict the norm of
+    # each vector
     pass
 
 class LinearAggregator(nn.Module):
     pass
 
-aggregators = {'avg': AverageAggregator}
+aggregators = {'avg': AverageAggregator, 'point': PointAggregator}
 def build_aggregator(type_='avg', **kwargs):
     """ Build an aggregator module.
     
