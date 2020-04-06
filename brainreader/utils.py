@@ -59,3 +59,39 @@ def compute_correlation(x, y, eps=1e-9):
         corrs[bad_cells] = -1
 
     return corrs.mean()
+
+
+def bivariate_gaussian(xy, xy_mean, xy_std, corr_xy, normalize=False):
+    """ Compute the pdf of a bivariate gaussian distribution.
+    
+    Arguments:
+        xy (torch.tensor): Points. A (M, 2) tensor.
+        xy_mean (torch.tensor): Mean of the distributions (in xy). Shape: (N, 2). N is the
+            number of different gaussian distributions this points will be evaluated in.
+        xy_std (torch tensor): Standard deviation in x and y. Shape: (N, 2).
+        corr_xy (torch.tensor): Correlation between x and y. Shape: (N).
+        normalize (boolean): Normalize the pdf values so it is a valid pdf (sums to 1).
+    
+    Returns:
+        pdfs (torch.tensor): A tensor (N, M) with the pdf values at each position.
+    """
+    # Make all inputs broadcastable (N, M, 2)
+    xy = xy.unsqueeze(0)
+    xy_mean = xy_mean.unsqueeze(1)
+    xy_std = xy_std.unsqueeze(1)
+    corr_xy = corr_xy.unsqueeze(-1)  # used after last dimension is reduced (so [N, 1])
+
+    # Compute pdf
+    residuals = (xy - xy_mean)
+    numer = (2 * corr_xy * torch.prod(residuals, dim=-1) / torch.prod(xy_std, dim=-1) -
+             torch.sum((residuals / xy_std)**2, dim=-1))
+    pdf = torch.exp(numer / (2 * (1 - corr_xy**2)))
+
+    # normalize pdf if needed
+    if normalize:
+        import math
+        divisor = (2 * math.pi * xy_std[..., 0] * xy_std[..., 1] *
+                   torch.sqrt(1 - corr_xy**2))
+        pdf = pdf / divisor
+
+    return pdf

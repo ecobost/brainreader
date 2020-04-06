@@ -341,6 +341,14 @@ class PointAggParams(dj.Lookup):
     contents = [{'agg_id': 1}, ]
 
 
+@schema
+class GaussianAggParams(dj.Lookup):
+    definition = """ # samples features with a gaussian mask
+    agg_id:             smallint    # id for the aggregator
+    """
+    contents = [{'agg_id': 1}, ]
+
+
 class FactorizedAggParams():
     pass
 
@@ -390,7 +398,7 @@ class ModelParams(dj.Lookup):
     @property
     def contents(self):
         cores = [('vgg', 1)]
-        aggregators = [('avg', 1), ('point', 1)]
+        aggregators = [('avg', 1), ('point', 1), ('gaussian', 1)]
         for i, ((ct, cid), (at, aid)) in enumerate(itertools.product(cores, aggregators),
                                                    start=1):
             yield {'model_params': i, 'core_type': ct, 'core_id': cid, 'agg_type': at,

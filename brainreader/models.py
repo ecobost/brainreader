@@ -5,6 +5,8 @@ import torch
 from torch import nn
 from torch.nn import functional as F
 
+from brainreader import utils
+
 
 def init_conv(modules):
     """ Initializes all module weights using He initialization and set biases to zero."""
@@ -187,8 +189,8 @@ class PointAggregator(nn.Module):
             to the intermediate representation to obtain its feature vector.
         """
         # Compute distance of each x, y coordinate in the image to the xy_positions
-        x = torch.arange(in_width) + 0.5
-        y = torch.arange(in_height) + 0.5
+        x = torch.arange(in_width, dtype=torch.float32) + 0.5
+        y = torch.arange(in_height, dtype=torch.float32) + 0.5
         xy_points = ((self.xy_positions + 1) / 2) * torch.tensor([in_width, in_height])  # in [0, h] or [0, w] coords
         x_dists = torch.abs(xy_points[:, 0, None] - x)  # num_cells x in_width
         y_dists = torch.abs(xy_points[:, 1, None] - y)  # num_cells x in_height
@@ -215,7 +217,7 @@ class GaussianAggregator(nn.Module):
         super().__init__()
         self._xy_mean = nn.Parameter(torch.zeros(num_cells, 2))
         self._xy_std = nn.Parameter(torch.zeros(num_cells, 2))
-        self._xy_cov = nn.Parameter(torch.zeros(num_cells))
+        self._corr_xy = nn.Parameter(torch.zeros(num_cells))
 
     @property
     def xy_mean(self):
@@ -223,12 +225,12 @@ class GaussianAggregator(nn.Module):
         return torch.tanh(self._xy_mean)
 
     @property
-    def covariance_matrix(self):
-        """Returns the 2x2 covariance matrix for each cell."""
-        xy_std = torch.exp(self._xy_std)
-        xy_covariance # wjhat  range for covariance
-        #TODO
-        pass
+    def xy_std(self):
+        return torch.exp(self._xy_std)
+
+    @property
+    def corr_xy(self):
+        return torch.tanh(self._corr_xy)
 
     def forward(self, input_):
         masks = self.get_masks(*input_.shape[-2:])
@@ -237,41 +239,51 @@ class GaussianAggregator(nn.Module):
 
     def init_parameters(self):
         nn.init.normal_(self._xy_mean, mean=0, std=0.25)
-        nn.init.normal_(self._xy_std)
-        nn.init.constant_(self._xy_cov, 0)
-        #TODO
+        nn.init.constant_(self._xy_std, -0.7) # std=0.5 in x and y
+        nn.init.constant_(self._corr_xy, 0)
 
     def get_masks(self, in_height, in_width):
-
+        """ Creates the mask each cell applies to the intermediate representation.
+        
+        This is a gaussian mask with the desired mean and std.
+        
+        Arguments:
+            in_height (int): Height of the input to this aggregator.
+            in_width (int): Width of the input_ to this aggregator.
+            
+        Returns:
+            A (num_cells, in_height, in_width) tensor with the mask that each cell applied 
+            to the intermediate representation to obtain its feature vector.
+        """
         # Get coordinates of input in [-1, 1] range
-        x = torch.arange(in_width)
-        y = torch.arange(in_height)
+        device = self._xy_mean.device
+        x = torch.arange(in_width, dtype=torch.float32, device=device) + 0.5
+        y = torch.arange(in_height, dtype=torch.float32, device=device) + 0.5
+        x_coords = 2 * x / in_width - 1
+        y_coords = 2 * y / in_height - 1
+        grid_y, grid_x = torch.meshgrid(y_coords, x_coords)
+        grid_xy = torch.stack([grid_x, grid_y], -1).view(-1, 2)  # in_height*in_widht x 2
 
-        # Compute gaussian mask
-        masks = utils.gaussian(x, y, mean=self.xy_mean, cov=self.covariance_matrix)
+        # Get pdf
+        masks = utils.bivariate_gaussian(grid_xy, self.xy_mean, self.xy_std, self.corr_xy)
+        masks = masks.view(-1, in_height, in_width)
 
         # Normalize
-        masks = masks / masks.sum(dim=(-1, -2))
+        masks = masks / masks.sum(dim=(-1, -2), keepdim=True)
 
         return masks
 
-# maybe do correlation rather than covariance that way i can restric it to -1, 1
-# or transform the _xy_cov into correlation -> covariance.
-
-# do i need to prevent too small stds (scaling may get rid of this restriction)
-
-# overall resolution may not matter, something that is std_x5, std_y5 will give  the same mask as std_x=2, std_y=2 (need to think abotut covariance though)
-
 
 class FactorizedAggregator(nn.Module):
-    #TODO: Given that the mask will be restricted to sum up to 1, i can restrict the norm of
-    # each vector
+    #TODO: Given that the mask will be restricted to sum up to 1, should I restrict the
+    # norm of each vector? I am afraid if i let it learn the weights directly they may explode.
     pass
 
 class LinearAggregator(nn.Module):
     pass
 
-aggregators = {'avg': AverageAggregator, 'point': PointAggregator}
+aggregators = {'avg': AverageAggregator, 'point': PointAggregator,
+               'gaussian': GaussianAggregator}
 def build_aggregator(type_='avg', **kwargs):
     """ Build an aggregator module.
     
