@@ -3,7 +3,7 @@
 
 # Training initial models
 from brainreader import train
-train.TrainedModel.populate({'model_params': 3}, reserve_jobs=True)
+train.TrainedModel.populate(reserve_jobs=True)
 train.Evaluation.populate(reserve_jobs=True)
 train.Ensemble.populate(reserve_jobs=True)
 train.EnsembleEvaluation.populate(reserve_jobs=True)
