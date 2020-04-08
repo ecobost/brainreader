@@ -82,16 +82,14 @@ def bivariate_gaussian(xy, xy_mean, xy_std, corr_xy, normalize=False):
     corr_xy = corr_xy.unsqueeze(-1)  # used after last dimension is reduced (so [N, 1])
 
     # Compute pdf
-    residuals = (xy - xy_mean)
-    numer = (2 * corr_xy * torch.prod(residuals, dim=-1) / torch.prod(xy_std, dim=-1) -
-             torch.sum((residuals / xy_std)**2, dim=-1))
-    pdf = torch.exp(numer / (2 * (1 - corr_xy**2)))
+    residuals = (xy - xy_mean) / xy_std
+    numer = 2 * corr_xy * torch.prod(residuals, dim=-1) - torch.sum(residuals**2, dim=-1)
+    pdf = torch.exp(numer / (2 * (1- corr_xy**2)))
 
     # normalize pdf if needed
     if normalize:
         import math
-        divisor = (2 * math.pi * xy_std[..., 0] * xy_std[..., 1] *
-                   torch.sqrt(1 - corr_xy**2))
+        divisor = 2 * math.pi * torch.prod(xy_std, dim=-1) * torch.sqrt(1 - corr_xy**2)
         pdf = pdf / divisor
 
     return pdf
