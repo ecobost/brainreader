@@ -42,10 +42,6 @@ class VGG(nn.Module):
             layers in one block have the same number of feature maps.
         use_batchnorm (bool): Whether to add a batchnorm layer after every convolution.
     """
-    #TODO: Change initial_image_size to somethign that cannot be confuised with the initiali size of the input image
-    #TODO: Decide on batchnorm nposition
-    # TODO: change maps_per_block to features per block or something else
-
     def __init__(self, in_channels=1, resized_img_dims=128,
                  layers_per_block=[2, 2, 2, 2, 2],
                  features_per_block=[32, 64, 96, 128, 160], use_batchnorm=True):
@@ -55,6 +51,10 @@ class VGG(nn.Module):
         self.resized_img_dims = resized_img_dims
         self.in_channels = in_channels
         self.out_channels = features_per_block[-1]
+
+        # #TODO: Should this be a property and maybe fix it so it will deal with uneven downsampling (i.e., input that is not divisible by 2)
+        # self.out_height = resized_img_dims / 2 ** len(layers_per_block)  # needed
+        # self.out_width = self.out_height
 
         # Create the layers
         layers = []
@@ -233,8 +233,16 @@ class GaussianAggregator(nn.Module):
         return torch.tanh(self._corr_xy)
 
     def forward(self, input_):
+        # Get masks
         masks = self.get_masks(*input_.shape[-2:])
-        samples = (input_.unsqueeze(-3) * masks).sum(dim=(-1, -2)).transpose(-1, -2)
+        
+        # Sample intermediate representation
+        input_ = input_.view(*input_.shape[:2], -1).transpose(-1, -2) # N x hw x nchannels
+        masks = masks.view(masks.shape[0], -1) # num_cells x hw
+        samples = torch.matmul(masks, input_) # N x num_cells x num_channels
+        # samples = torch.stack([torch.matmul(masks, ex) for ex in input_]) # *
+        # * this may be more memory efficient (based on MultipleLinear.forward)
+        
         return samples
 
     def init_parameters(self):
@@ -275,15 +283,61 @@ class GaussianAggregator(nn.Module):
 
 
 class FactorizedAggregator(nn.Module):
-    #TODO: Given that the mask will be restricted to sum up to 1, should I restrict the
-    # norm of each vector? I am afraid if i let it learn the weights directly they may explode.
-    pass
+    """ Learns two vectors per cell and creates the aggregator mask with an outer product.
+    
+    Arguments:
+        num_cells (int): Number of cells in the output.
+        in_height (int): Expected height of the input.
+        in_width (int): Expected width of the input.
+    """
+    def __init__(self, num_cells, in_height=4, in_width=4):
+        super().__init__()
+        self._mask_x = nn.Parameter(torch.zeros(num_cells, in_height))
+        self._mask_y = nn.Parameter(torch.zeros(num_cells, in_width))
+
+    @property
+    def mask_x(self):
+        """ Restrict to [0, 1] range. """
+        return torch.sigmoid(self._mask_x)
+
+    @property
+    def mask_y(self):
+        """ Restrict to [0, 1] range. """
+        return torch.sigmoid(self._mask_y)
+
+    def forward(self, input_):
+        masks = self.get_masks()
+        input_ = input_.view(*input_.shape[:2], -1).transpose(-1, -2) # N x hw x nchannels
+        masks = masks.view(masks.shape[0], -1) # num_cells x hw
+        samples = torch.matmul(masks, input_) # N x num_cells x num_channels
+        return samples
+
+    def init_parameters(self):
+        nn.init.constant_(self._mask_x, 0)
+        nn.init.constant_(self._mask_y, 0)
+
+    def get_masks(self):
+        """ Creates the mask each cell applies to the intermediate representation.
+        
+        This is the outer product of two (learned) 1-dimensional tensors.
+  
+        Returns:
+            A (num_cells, in_height, in_width) tensor with the mask that each cell applied 
+            to the intermediate representation to obtain its feature vector.
+        """
+        # TODO: i could receive in_height and in_width here to keep the interface
+        # consistent and make sure it agrees  with params size
+        masks = self.mask_y.unsqueeze(-1) * self.mask_x.unsqueeze(-2)
+        masks = masks / masks.sum(dim=(-1, -2), keepdims=True)
+        return masks
+
 
 class LinearAggregator(nn.Module):
+    #TODO:
     pass
 
 aggregators = {'avg': AverageAggregator, 'point': PointAggregator,
-               'gaussian': GaussianAggregator}
+               'gaussian': GaussianAggregator, 'factorized': FactorizedAggregator}
 def build_aggregator(type_='avg', **kwargs):
     """ Build an aggregator module.
     
