@@ -51,10 +51,8 @@ class VGG(nn.Module):
         self.resized_img_dims = resized_img_dims
         self.in_channels = in_channels
         self.out_channels = features_per_block[-1]
-
-        # #TODO: Should this be a property and maybe fix it so it will deal with uneven downsampling (i.e., input that is not divisible by 2)
-        # self.out_height = resized_img_dims / 2 ** len(layers_per_block)  # needed
-        # self.out_width = self.out_height
+        self.out_height = resized_img_dims // 2 ** len(layers_per_block)
+        self.out_width = self.out_height
 
         # Create the layers
         layers = []
@@ -235,14 +233,14 @@ class GaussianAggregator(nn.Module):
     def forward(self, input_):
         # Get masks
         masks = self.get_masks(*input_.shape[-2:])
-        
+
         # Sample intermediate representation
         input_ = input_.view(*input_.shape[:2], -1).transpose(-1, -2) # N x hw x nchannels
         masks = masks.view(masks.shape[0], -1) # num_cells x hw
         samples = torch.matmul(masks, input_) # N x num_cells x num_channels
         # samples = torch.stack([torch.matmul(masks, ex) for ex in input_]) # *
         # * this may be more memory efficient (based on MultipleLinear.forward)
-        
+
         return samples
 
     def init_parameters(self):
@@ -290,7 +288,7 @@ class FactorizedAggregator(nn.Module):
         in_height (int): Expected height of the input.
         in_width (int): Expected width of the input.
     """
-    def __init__(self, num_cells, in_height=4, in_width=4):
+    def __init__(self, num_cells, in_height, in_width):
         super().__init__()
         self._mask_x = nn.Parameter(torch.zeros(num_cells, in_height))
         self._mask_y = nn.Parameter(torch.zeros(num_cells, in_width))
@@ -333,11 +331,50 @@ class FactorizedAggregator(nn.Module):
 
 
 class LinearAggregator(nn.Module):
-    #TODO:
-    pass
+    """ Aggregate intermediate representations with a learned mask.
+    
+    It learns a in_height x in_width mask per cell.
+    
+    Arguments:
+        num_cells (int): Number of cells in the output.
+        in_height (int): Expected height of the input.
+        in_width (int): Expected width of the input.
+    """
+    def __init__(self, num_cells, in_height, in_width):
+        super().__init__()
+        self._masks = nn.Parameter(torch.zeros(num_cells, in_height, in_width))
+
+    @property
+    def masks(self):
+        return torch.sigmoid(self._masks)
+
+    def forward(self, input_):
+        masks = self.get_masks()
+        input_ = input_.view(*input_.shape[:2], -1).transpose(-1, -2) # N x hw x nchannels
+        masks = masks.view(masks.shape[0], -1) # num_cells x hw
+        samples = torch.matmul(masks, input_) # N x num_cells x num_channels
+        return samples
+
+    def init_parameters(self):
+        nn.init.constant_(self._masks, 0)
+
+    def get_masks(self):
+        """ Creates the mask each cell applies to the intermediate representation.
+        
+        This is just the sigmoid of the learned parameters.
+  
+        Returns:
+            A (num_cells, in_height, in_width) tensor with the mask that each cell applied 
+            to the intermediate representation to obtain its feature vector.
+        """
+        masks = self.masks
+        masks = masks / masks.sum(dim=(-1, -2), keepdims=True)
+        return masks
+
 
 aggregators = {'avg': AverageAggregator, 'point': PointAggregator,
-               'gaussian': GaussianAggregator, 'factorized': FactorizedAggregator}
+               'gaussian': GaussianAggregator, 'factorized': FactorizedAggregator,
+               'linear': LinearAggregator}
 def build_aggregator(type_='avg', **kwargs):
     """ Build an aggregator module.
     

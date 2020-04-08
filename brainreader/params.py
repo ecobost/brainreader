@@ -349,8 +349,20 @@ class GaussianAggParams(dj.Lookup):
     contents = [{'agg_id': 1}, ]
 
 
-class FactorizedAggParams():
-    pass
+@schema
+class FactorizedAggParams(dj.Lookup):
+    definition = """ # samples features with a spatially factorized mask
+    agg_id:             smallint    # id for the aggregator
+    """
+    contents = [{'agg_id': 1}, ]
+
+
+@schema
+class LinearAggParams(dj.Lookup):
+    definition = """ # samples features with a full (learned) mask
+    agg_id:             smallint    # id for the aggregator
+    """
+    contents = [{'agg_id': 1}, ]
 
 
 @schema
@@ -398,7 +410,8 @@ class ModelParams(dj.Lookup):
     @property
     def contents(self):
         cores = [('vgg', 1)]
-        aggregators = [('avg', 1), ('point', 1), ('gaussian', 1)]
+        aggregators = [('avg', 1), ('point', 1), ('gaussian', 1), ('factorized', 1), 
+                       ('linear', 1)]
         for i, ((ct, cid), (at, aid)) in enumerate(itertools.product(cores, aggregators),
                                                    start=1):
             yield {'model_params': i, 'core_type': ct, 'core_id': cid, 'agg_type': at,
@@ -440,9 +453,13 @@ class ModelParams(dj.Lookup):
             raise NotImplementedError(f'Core {core_type} not implemented')
         core = models.build_extractor(core_type, in_channels=in_channels, **core_kwargs)
 
-        # Build aggregator (all have the same input)
+        # Build aggregator
         agg_type = self.fetch1('agg_type')
-        aggregator = models.build_aggregator(agg_type, num_cells=num_cells)
+        if agg_type in ['factorized', 'linear']:
+            agg_kwargs = {'in_height': core.out_height, 'in_width': core.out_width}
+        else:
+            agg_kwargs = {}
+        aggregator = models.build_aggregator(agg_type, num_cells=num_cells, **agg_kwargs)
 
         # Build readout
         readout_type = self.fetch1('readout_type')
