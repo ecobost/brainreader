@@ -303,7 +303,7 @@ class ResNetParams(dj.Lookup):
     """
     contents = [
         {'core_id': 1, 'resized_img_dims': 128, 'initial_maps': 32,
-         'blocks_per_layer':[2, 2, 2, 2, 2, 2], 'compression_factor': 1.4,
+         'blocks_per_layer':[1, 2, 2, 2, 2, 2], 'compression_factor': 1.4,
          'use_bottleneck': False},
     ]
 
