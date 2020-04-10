@@ -47,13 +47,6 @@ class VGG(nn.Module):
                  features_per_block=[32, 64, 96, 128, 160], use_batchnorm=True):
         super().__init__()
 
-        # Save some params
-        self.resized_img_dims = resized_img_dims
-        self.in_channels = in_channels
-        self.out_channels = features_per_block[-1]
-        self.out_height = resized_img_dims // 2 ** len(layers_per_block)
-        self.out_width = self.out_height
-
         # Create the layers
         layers = []
         for i, (num_layers, num_features) in enumerate(zip(layers_per_block,
@@ -70,25 +63,197 @@ class VGG(nn.Module):
             layers.append(nn.AvgPool2d(2))
         self.layers = nn.Sequential(*layers)
 
+        # Save some params
+        self.resized_img_dims = resized_img_dims
+        self.in_channels = in_channels
+        self.out_channels = features_per_block[-1]
+        self.out_height = resized_img_dims // 2**len(layers_per_block)
+        self.out_width = self.out_height
+
+
     def forward(self, input_):
         if self.resized_img_dims > 0:
             input_ = F.interpolate(input_, size=self.resized_img_dims, mode='bilinear',
-                                   align_corners=False)  # align_corners is just to avoid warnings
+                                   align_corners=False)  # align_corners avoids warnings
         return self.layers(input_)
 
     def init_parameters(self):
         init_conv(m for m in self.layers if isinstance(m, nn.Conv2d))
         init_bn(m for m in self.layers if isinstance(m, nn.BatchNorm2d))
 
-#TODO: Copy the ResNet/DenseNet from multi21 (or bl3d)
-class DenseNet(nn.Module):
-    pass
+
+class ResidualBlock(nn.Module):
+    """ A single residual block.
+    
+    Two layers (or three for bottleneck blocks) and a shortcut connection from the input
+    to the output. Preserves spatial dimensions and number of feature maps.
+    
+    Arguments:
+        in_channels (int): Number of feature maps in the input (and output)
+        use_bottleneck (bool): Whether to use bottleneck blocks.
+        bottleneck_factor (float): Factor to reduce feature maps in the bottleneck layer.
+    """
+    def __init__(self, in_channels, use_bottleneck, bottleneck_factor):
+        super().__init__()
+
+        self.out_channels = in_channels
+        if use_bottleneck:
+            btn_channels = int(in_channels * bottleneck_factor)
+            self.layers = nn.Sequential(
+                nn.Conv2d(in_channels, btn_channels, 1, bias=False),
+                nn.BatchNorm2d(btn_channels),
+                nn.ReLU(inplace=True),
+                nn.Conv2d(btn_channels, btn_channels, 3, padding=1, bias=False),
+                nn.BatchNorm2d(btn_channels),
+                nn.ReLU(inplace=True),
+                nn.Conv2d(btn_channels, in_channels, 1, bias=False),
+                nn.BatchNorm2d(in_channels))
+        else:
+            self.layers = nn.Sequential(
+                nn.Conv2d(in_channels, in_channels, 3, padding=1, bias=False),
+                nn.BatchNorm2d(in_channels),
+                nn.ReLU(inplace=True),
+                nn.Conv2d(in_channels, in_channels, 3, padding=1, bias=False),
+                nn.BatchNorm2d(in_channels))
+
+    def forward(self, input_):
+        return F.relu(self.layers(input_) + input_)
+
+    def init_parameters(self):
+        init_conv(module for module in self.layers if isinstance(module, nn.Conv2d))
+        init_bn(module for module in self.layers if isinstance(module, nn.BatchNorm2d))
+
+
+class DownsamplingBlock(nn.Module):
+    """ Residual block that downsamples spatially the feature maps and increases their
+    number.
+    
+    We depart from the original implementation in that we don't use 1x1 convolutions with
+    stride 1 to reduce spatial dimensions and number of feature maps: in bottleneck
+    blocks, the first 1 x 1 conv reduces the number of feature maps and the following
+    3 x 3 conv does the spatial downsampling (stride=2); in projection shortcuts, we
+    first average pool to downsample spatial dimensions and then apply a 1x1 conv to
+    increase number of feature maps.
+    
+    Arguments:
+        in_channels (int): Number of feature maps in the input.
+        compression_factor (float): Factor to increase/decrease the number of feature maps.
+        use_bottleneck (bool): Whether to use bottleneck residual blocks.
+        bottleneck_factor (float): Factor to reduce feature maps in the bottleneck layer.
+            This will also be multiplied by compression_factor to obtain the number of
+            bottleneck feature maps.
+    """
+    def __init__(self, in_channels, compression_factor, use_bottleneck,
+                 bottleneck_factor):
+        super().__init__()
+        self.out_channels = int(in_channels * compression_factor)
+        if use_bottleneck:
+            btn_channels = int(in_channels * bottleneck_factor * compression_factor)
+            self.layers = nn.Sequential(
+                nn.Conv2d(in_channels, btn_channels, 1, bias=False),
+                nn.BatchNorm2d(btn_channels),
+                nn.ReLU(inplace=True),
+                nn.Conv2d(btn_channels, btn_channels, 3, padding=1, stride=2, bias=False),
+                nn.BatchNorm2d(btn_channels),
+                nn.ReLU(inplace=True),
+                nn.Conv2d(btn_channels, self.out_channels, 1, bias=False),
+                nn.BatchNorm2d(self.out_channels))
+        else:
+            self.layers = nn.Sequential(
+                nn.Conv2d(in_channels, self.out_channels, 3, padding=1, stride=2,
+                          bias=False),
+                nn.BatchNorm2d(self.out_channels),
+                nn.ReLU(inplace=True),
+                nn.Conv2d(self.out_channels, self.out_channels, 3, padding=1, bias=False),
+                nn.BatchNorm2d(self.out_channels))
+        self.projection = nn.Sequential(
+            nn.AvgPool2d(2, ceil_mode=True),  # half spatial dimensions
+            nn.Conv2d(in_channels, self.out_channels, 1, bias=False),  # increase feature maps
+            nn.BatchNorm2d(self.out_channels))
+
+    def forward(self, input_):
+        return F.relu(self.layers(input_) + self.projection(input_))
+
+    def init_parameters(self):
+        init_conv(module for module in self.layers if isinstance(module, nn.Conv2d))
+        init_bn(module for module in self.layers if isinstance(module, nn.BatchNorm2d))
+        init_conv([self.projection[1]])
+        init_bn([self.projection[2]])
+
+
 class ResNet(nn.Module):
+    """ Residual network from (He et al., 2016).
+    
+    We use skip connection every couple of layers (or every three when using bottleneck
+    building blocks); when the skip connection goes to a smaller feature map spatial size
+    (usually half the original size), we downsampled the input volume with average
+    pooling and use 1x1 convolutions to increase the number feature maps (ResNet-B in the
+    paper).
+    
+    Arguments:
+        resized_img_dims (int): Resize the original input to have 1:1 aspect ratio at this
+            size. Skip it if -1.
+        in_channels (int): Number of channels in the inputs.
+        blocks_per_layer (list of ints): Number of building blocks (two or three layers)
+            per layer. After each layer we spatially downsample and increase the number of
+            feature maps.
+        initial_maps (int): Initial number of feature maps.
+        compression_factor (int): How much to decrease/increase feature maps after every
+            residual layer.
+        use_bottleneck (bool): Whether each building block is a bottleneck block; i.e., a
+            1x1 conv reducing feature maps, a 3x3 conv preserving feature maps and a 1x1
+            conv recovering original feature maps (Fig. 5 in He et al., 2016).
+        bottleneck_factor (float): How much to reduce feature maps in bottleneck layers.
+            Ignored if use_bottleneck=False.
+    """
+    def __init__(self, in_channels=1, resized_img_dims=128, initial_maps=32,
+                 blocks_per_layer=(2, 2, 2, 2, 2), compression_factor=2, 
+                 use_bottleneck=False, bottleneck_factor=0.25):
+        super().__init__()
+
+        # First conv
+        self.conv1 = nn.Conv2d(in_channels, initial_maps, 3, padding=1)
+        self.bn1 = nn.BatchNorm2d(initial_maps)
+
+        # Residual blocks
+        blocks = []
+        for _ in range(blocks_per_layer[0]): # first residual layer
+            blocks.append(ResidualBlock(initial_maps, use_bottleneck, bottleneck_factor))
+        for bpl in blocks_per_layer[1:]:
+            blocks.append(DownsamplingBlock(blocks[-1].out_channels, compression_factor,
+                                            use_bottleneck, bottleneck_factor))
+            for _ in range(bpl - 1):
+                blocks.append(ResidualBlock(blocks[-1].out_channels, use_bottleneck,
+                                            bottleneck_factor))
+        self.blocks = nn.Sequential(*blocks)
+
+        # Save some params
+        self.resized_img_dims = resized_img_dims
+        self.in_channels = in_channels
+        self.out_channels = blocks[-1].out_channels
+        self.out_height = resized_img_dims // 2**(len(blocks_per_layer) - 1)
+        self.out_width = self.out_height
+
+    def forward(self, input_):
+        if self.resized_img_dims > 0:
+            input_ = F.interpolate(input_, size=self.resized_img_dims, mode='bilinear',
+                                   align_corners=False)  # align_corners avoids warnings
+        h1 = F.relu(self.bn1(self.conv1(input_)), inplace=True)
+        return self.blocks(h1)
+
+    def init_parameters(self):
+        init_conv([self.conv1])
+        init_bn([self.bn1])
+        for block in self.blocks:
+            block.init_parameters()
+
+#TODO: Copy the DenseNet from bl3d
+class DenseNet(nn.Module):
     pass
 class RevNet(nn.Module):
     pass
 
-extractors = {'vgg': VGG}
+extractors = {'vgg': VGG, 'resnet': ResNet}
 def build_extractor(type_='vgg', **kwargs):
     """ Build a feature extractor module.
     

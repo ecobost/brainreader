@@ -288,6 +288,26 @@ class VGGParams(dj.Lookup):
     ]
 
 
+@schema
+class ResNetParams(dj.Lookup):
+    definition = """ # resnet inspired feature extractor
+    
+    core_id:            smallint        # id for resnets
+    ---
+    resized_img_dims:   smallint        # resize the input to this size (1: 1 aspect ratio), -1 avoids it
+    initial_maps:       smallint        # number of feature maps in the very initial layer
+    blocks_per_layer:   blob            # how many residual blocks (each 2 conv layers) in each residual "layer"
+    compression_factor: float           # how much to decrease/increase feature maps after every residual layer
+    use_bottleneck:     boolean         # whether to use bottleneck building blocks
+    bottleneck_factor=NULL: float       # how much to reduce feature maps in bottleneck (if used)
+    """
+    contents = [
+        {'core_id': 1, 'resized_img_dims': 128, 'initial_maps': 32,
+         'blocks_per_layer':[2, 2, 2, 2, 2, 2], 'compression_factor': 1.4,
+         'use_bottleneck': False},
+    ]
+
+
 # @schema
 # class FCN(dj.Lookup):
 #     definition = """ # nuclear segmentation network
@@ -409,8 +429,8 @@ class ModelParams(dj.Lookup):
 
     @property
     def contents(self):
-        cores = [('vgg', 1)]
-        aggregators = [('avg', 1), ('point', 1), ('gaussian', 1), ('factorized', 1), 
+        cores = [('vgg', 1), ('resnet', 1)]
+        aggregators = [('avg', 1), ('point', 1), ('gaussian', 1), ('factorized', 1),
                        ('linear', 1)]
         for i, ((ct, cid), (at, aid)) in enumerate(itertools.product(cores, aggregators),
                                                    start=1):
@@ -443,12 +463,17 @@ class ModelParams(dj.Lookup):
         # Build core
         core_type = self.fetch1('core_type')
         if core_type == 'vgg':
+            args = ['resized_img_dims', 'layers_per_block', 'features_per_block',
+                    'use_batchnorm']
             core_params = (VGGParams & self).fetch1()
-            core_kwargs = {
-                'resized_img_dims': core_params['resized_img_dims'],
-                'layers_per_block': core_params['layers_per_block'],
-                'features_per_block': core_params['features_per_block'],
-                'use_batchnorm': core_params['use_batchnorm']}
+            core_kwargs = {k: core_params[k] for k in args}
+            core_kwargs['use_batchnorm'] = bool(core_kwargs['use_batchnorm'])
+        elif core_type == 'resnet':
+            args = ['resized_img_dims', 'initial_maps', 'blocks_per_layer',
+                    'compression_factor', 'use_bottleneck', 'bottleneck_factor']
+            core_params = (ResNetParams & self).fetch1()
+            core_kwargs = {k: core_params[k] for k in args}
+            core_kwargs['use_bottleneck'] = bool(core_kwargs['use_bottleneck'])
         else:
             raise NotImplementedError(f'Core {core_type} not implemented')
         core = models.build_extractor(core_type, in_channels=in_channels, **core_kwargs)
