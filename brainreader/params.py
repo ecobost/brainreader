@@ -252,6 +252,7 @@ class TrainingParams(dj.Lookup):
     lr_decay:           decimal(2, 2) # factor multiplying learning rate when decreasing
     decay_epochs:       smallint    # number of epochs to wait before decreasing learning rate if val loss has not improved
     """
+
     @property
     def contents(self):
         seeds = [1234, 2345, 4567, 5678, 6789]
@@ -259,17 +260,18 @@ class TrainingParams(dj.Lookup):
         wds = [0, 1e-4]
         batch_sizes = [32, 64]
         #TODO: losses = ['mse', 'poisson']
-        for i, (seed, lr, wd, bs) in enumerate(itertools.product(seeds, lrs, wds,
-                                                                 batch_sizes), start=1):
-            yield {'training_params': i, 'seed': seed, 'num_epochs': 200,
-                   'val_epochs': 1, 'batch_size': bs, 'learning_rate': lr,
-                   'momentum': 0.9, 'weight_decay': wd, 'loss_function': 'mse',
-                   'lr_decay': 0.1, 'decay_epochs': 10}
-
+        for i, (seed, lr, wd,
+                bs) in enumerate(itertools.product(seeds, lrs, wds, batch_sizes),
+                                 start=1):
+            yield {'training_params': i, 'seed': seed, 'num_epochs': 200, 'val_epochs': 1,
+                   'batch_size': bs, 'learning_rate': lr, 'momentum': 0.9,
+                   'weight_decay': wd, 'loss_function': 'mse', 'lr_decay': 0.1,
+                   'decay_epochs': 10}
 
 
 
 ############################## MODELS ###############################
+
 
 @schema
 class VGGParams(dj.Lookup):
@@ -284,8 +286,7 @@ class VGGParams(dj.Lookup):
     """
     contents = [
         {'core_id': 1, 'resized_img_dims': 128, 'layers_per_block': [2, 2, 2, 2, 2],
-         'features_per_block': [32, 64, 96, 128, 160], 'use_batchnorm': True},
-    ]
+         'features_per_block': [32, 64, 96, 128, 160], 'use_batchnorm': True}, ]
 
 
 @schema
@@ -303,43 +304,26 @@ class ResNetParams(dj.Lookup):
     """
     contents = [
         {'core_id': 1, 'resized_img_dims': 128, 'initial_maps': 32,
-         'blocks_per_layer':[1, 2, 2, 2, 2, 2], 'compression_factor': 1.4,
-         'use_bottleneck': False},
-    ]
+         'blocks_per_layer': [1, 2, 2, 2, 2, 2], 'compression_factor': 1.4,
+         'use_bottleneck': False}, ]
 
 
-# @schema
-# class FCN(dj.Lookup):
-#     definition = """ # nuclear segmentation network
-#
-#     nsn_version:       tinyint
-#     ---
-#         ---
-#     num_features:       tinyblob        # number of feature maps per layer
-#     kernel_sizes:       tinyblob        # list with kernel sizes (one per layer)
-#     dilation:           tinyblob        # list with dilation (one per layer)
-#     padding:            tinyblob        # list with padding (one per layer)
-#     """
-#     contents = [
-#         [1, (96, 1), (3, 1), (1, 1), (1, 0)]
-#     ]
-
-
-# @schema
-# class DenseNet(dj.Lookup):
-#     definition = """ # core dense net
-#
-#         core_version:       tinyint
-#         ---
-#         initial_maps:       tinyint     # number of feature maps in the initial layer
-#         layers_per_block:   blob        # number of layers in each dense block
-#         growth_rate:        tinyint     # how many feature maps to add each layer
-#         compression_factor: float       # how to increase/decrease feature maps in transition layers
-#
-#         """
-#             contents = [
-#                 [1, 16, (6, 6), 8, 0.5]
-#             ]
+@schema
+class DenseNetParams(dj.Lookup):
+    definition = """
+    
+    core_id:            smallint        # id for densenets
+    ---
+    resized_img_dims:   smallint        # resize the input to this size (1: 1 aspect ratio), -1 avoids it
+    initial_maps:       smallint        # number of feature maps in the initial layer
+    layers_per_block:   blob            # number of layers in each dense block
+    growth_rate:        tinyint         # how many feature maps to add in each layer
+    compression_factor: float           # how to increase/decrease feature maps in transition layers
+    """
+    contents = [
+        {'core_id': 1, 'resized_img_dims': 128, 'initial_maps': 32,
+         'layers_per_block': [1, 3, 3, 3, 3, 2], 'growth_rate': 32,
+         'compression_factor': 0.5},  ]
 
 # class RevNetParams():
 #     pass
@@ -429,7 +413,7 @@ class ModelParams(dj.Lookup):
 
     @property
     def contents(self):
-        cores = [('vgg', 1), ('resnet', 1)]
+        cores = [('vgg', 1), ('resnet', 1), ('densenet', 1)]
         aggregators = [('avg', 1), ('point', 1), ('gaussian', 1), ('factorized', 1),
                        ('linear', 1)]
         for i, ((ct, cid), (at, aid)) in enumerate(itertools.product(cores, aggregators),
@@ -474,6 +458,11 @@ class ModelParams(dj.Lookup):
             core_params = (ResNetParams & self).fetch1()
             core_kwargs = {k: core_params[k] for k in args}
             core_kwargs['use_bottleneck'] = bool(core_kwargs['use_bottleneck'])
+        elif core_type == 'densenet':
+            args = ['resized_img_dims', 'initial_maps', 'layers_per_block', 'growth_rate',
+                    'compression_factor']
+            core_params = (DenseNetParams & self).fetch1()
+            core_kwargs = {k: core_params[k] for k in args}
         else:
             raise NotImplementedError(f'Core {core_type} not implemented')
         core = models.build_extractor(core_type, in_channels=in_channels, **core_kwargs)

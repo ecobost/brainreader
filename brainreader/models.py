@@ -65,7 +65,6 @@ class VGG(nn.Module):
 
         # Save some params
         self.resized_img_dims = resized_img_dims
-        self.in_channels = in_channels
         self.out_channels = features_per_block[-1]
         self.out_height = resized_img_dims // 2**len(layers_per_block)
         self.out_width = self.out_height
@@ -199,7 +198,7 @@ class ResNet(nn.Module):
             feature maps.
         initial_maps (int): Initial number of feature maps.
         compression_factor (int): How much to decrease/increase feature maps after every
-            residual layer.
+            residual layer, e.g., 2 will double the feature maps.
         use_bottleneck (bool): Whether each building block is a bottleneck block; i.e., a
             1x1 conv reducing feature maps, a 3x3 conv preserving feature maps and a 1x1
             conv recovering original feature maps (Fig. 5 in He et al., 2016).
@@ -207,7 +206,7 @@ class ResNet(nn.Module):
             Ignored if use_bottleneck=False.
     """
     def __init__(self, in_channels=1, resized_img_dims=128, initial_maps=32,
-                 blocks_per_layer=(2, 2, 2, 2, 2), compression_factor=2, 
+                 blocks_per_layer=(2, 2, 2, 2, 2), compression_factor=2,
                  use_bottleneck=False, bottleneck_factor=0.25):
         super().__init__()
 
@@ -229,7 +228,6 @@ class ResNet(nn.Module):
 
         # Save some params
         self.resized_img_dims = resized_img_dims
-        self.in_channels = in_channels
         self.out_channels = blocks[-1].out_channels
         self.out_height = resized_img_dims // 2**(len(blocks_per_layer) - 1)
         self.out_width = self.out_height
@@ -247,13 +245,123 @@ class ResNet(nn.Module):
         for block in self.blocks:
             block.init_parameters()
 
-#TODO: Copy the DenseNet from bl3d
+
+class DenseBlock(nn.Module):
+    """ A single dense block.
+    
+    Input to each layer is the concatenation (in the channel axes) of the output of every 
+    previous layer (and the input to the block). The output of the block is the 
+    concatenation of the input and feature maps from all layers.
+    
+    Arguments:
+        in_channels (int): Number of channels in the input.
+        growth_rate (int): Number of feature maps to add per layer.
+        num_layers (int): Number of layers in this block.
+    """
+    def __init__(self, in_channels, growth_rate, num_layers):
+        super().__init__()
+        self.out_channels = in_channels + num_layers * growth_rate
+        modules = []
+        for next_in_channels in range(in_channels, self.out_channels, growth_rate):
+            modules.append(
+                nn.Sequential(
+                    nn.BatchNorm2d(next_in_channels),
+                    nn.ReLU(inplace=True),
+                    nn.Conv2d(next_in_channels, growth_rate, 3, padding=1, bias=False)))
+        self.modules_ = nn.ModuleList(modules)
+
+    def forward(self, input_):
+        x = input_
+        for module in self.modules_:
+            x = torch.cat([x, module(x)], dim=1)
+        return x
+
+    def init_parameters(self):
+        init_bn(module[0] for module in self.modules_)
+        init_conv(module[2] for module in self.modules_)
+
+
+class TransitionLayer(nn.Module):
+    """ A transition layer compresses the number of feature maps.
+    
+    This decreases/increases the number of feature maps with a 1x1 conovlution and 
+    downsamples the input spatially with a 2x2 average pooling.
+    
+    Arguments:
+        in_channels (int): Number of channels in the input.
+        compression_factor (float): How much to reduce feature maps.
+    """
+    def __init__(self, in_channels, compression_factor):
+        super().__init__()
+        self.out_channels = int(in_channels * compression_factor)
+        self.layers = nn.Sequential(
+            nn.BatchNorm2d(in_channels),
+            nn.ReLU(inplace=True),
+            nn.Conv2d(in_channels, self.out_channels, 1, bias=False),
+            nn.AvgPool2d(2))
+    def forward(self, input_):
+        return self.layers(input_)
+
+    def init_parameters(self):
+        init_bn([self.layers[0]])
+        init_conv([self.layers[2]])
+
+
 class DenseNet(nn.Module):
-    pass
+    """ DenseNet-C from Huang et al, 2016.
+    
+    Arguments:
+        in_channels (int): Number of channels in the input images.
+        resized_img_dims (int): Resize the original input to have 1:1 aspect ratio at this
+            size. Skip it if -1.
+        initial_maps (int): Number of maps in the initial layer.
+        layers_per_block (list of ints): Number of layers in each dense block. Also
+            defines the number of dense blocks in the network.
+        growth_rate (int): Number of feature maps to add per layer.
+        compression_factor (float): Between each pair of dense blocks, the number of
+            feature maps are decreased by this factor, e.g., 0.5 produces half as many.
+    """
+    def __init__(self, in_channels=1, resized_img_dims=128, initial_maps=32,
+                 layers_per_block=(2, 3, 3, 3, 3, 2), growth_rate=32,
+                 compression_factor=0.5):
+        super().__init__()
+
+        # First conv
+        self.conv1 = nn.Conv2d(in_channels, initial_maps, 3, padding=1)
+
+        # Dense blocks and transition layers
+        layers = []
+        layers.append(DenseBlock(initial_maps, growth_rate, layers_per_block[0]))
+        for num_layers in layers_per_block[1:]:
+            layers.append(TransitionLayer(layers[-1].out_channels, compression_factor))
+            layers.append(DenseBlock(layers[-1].out_channels, growth_rate, num_layers))
+        self.layers = nn.Sequential(*layers)
+        self.last_bias = nn.Parameter(torch.zeros(self.layers[-1].out_channels))  # *
+        # * last conv does not have bias or batchnorm afterwards, so I'll add it manually
+
+        # Save some parameters
+        self.resized_img_dims = resized_img_dims
+        self.out_channels = len(self.last_bias)
+        self.out_height = resized_img_dims // 2**(len(layers_per_block) - 1)
+        self.out_width = self.out_height
+
+    def forward(self, input_):
+        if self.resized_img_dims > 0:
+            input_ = F.interpolate(input_, size=self.resized_img_dims, mode='bilinear',
+                                   align_corners=False)  # align_corners avoids warnings
+        return self.layers(self.conv1(input_)) + self.last_bias.view(1, -1, 1, 1)
+
+    def init_parameters(self):
+        nn.init.constant_(self.last_bias, 0)
+        for layer in self.layers:
+            layer.init_parameters()
+
+
 class RevNet(nn.Module):
+    #TODO:
     pass
 
-extractors = {'vgg': VGG, 'resnet': ResNet}
+extractors = {'vgg': VGG, 'resnet': ResNet, 'densenet': DenseNet}
 def build_extractor(type_='vgg', **kwargs):
     """ Build a feature extractor module.
     
@@ -403,9 +511,7 @@ class GaussianAggregator(nn.Module):
         input_ = input_.view(*input_.shape[:2], -1).transpose(-1, -2) # N x hw x nchannels
         masks = masks.view(masks.shape[0], -1) # num_cells x hw
         samples = torch.matmul(masks, input_) # N x num_cells x num_channels
-        # samples = torch.stack([torch.matmul(masks, ex) for ex in input_]) # *
-        # * this may be more memory efficient (based on MultipleLinear.forward)
-
+        
         return samples
 
     def init_parameters(self):
