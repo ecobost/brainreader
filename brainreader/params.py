@@ -172,7 +172,7 @@ class DataParams(dj.Lookup):
             split(str): What split to return: 'train', 'val, 'test'. None will return all
                 images.
             avg_repeats (bool): Average the responses to an image across repeats. This
-                will only work if all images have the same
+                will only work if all images have the same number of repeats.
 
         Returns:
             responses (np.array): An np.float array (num_images x num_cells if avg_repeats
@@ -349,8 +349,12 @@ class PointAggParams(dj.Lookup):
 class GaussianAggParams(dj.Lookup):
     definition = """ # samples features with a gaussian mask
     agg_id:             smallint    # id for the aggregator
+    ---
+    full_covariance:    bool        # whether to use a full covariance matrix or only a diagonal covariance matrix
     """
-    contents = [{'agg_id': 1}, ]
+    contents = [
+        {'agg_id': 1, 'full_covariance': True},
+        {'agg_id': 2, 'full_covariance': False}, ]
 
 
 @schema
@@ -403,7 +407,7 @@ class ModelParams(dj.Lookup):
     ---
     core_type:      varchar(16) # type of feature extractor to use as core of the network
     core_id:        smallint    # what specific instance of the core_type will be used
-    agg_type:       varchar(16) # type of aggegator
+    agg_type:       varchar(16) # type of aggregator
     agg_id:         smallint    # what specific instance of the aggregator to use
     readout_type:   varchar(16) # type of readout
     readout_id:     smallint    # what specific instance of the readout to use
@@ -421,6 +425,14 @@ class ModelParams(dj.Lookup):
             yield {'model_params': i, 'core_type': ct, 'core_id': cid, 'agg_type': at,
                    'agg_id': aid, 'readout_type': 'mlp', 'readout_id': 1,
                    'act_type': 'none', 'act_id': 1}
+
+        # Test gaussian aggregator with 4 rather than 5 params
+        i = i + 1
+        yield {
+            'model_params': i, 'core_type': 'vgg', 'core_id': 1, 'agg_type': 'gaussian',
+            'agg_id': 2, 'readout_type': 'mlp', 'readout_id': 1, 'act_type': 'none',
+            'act_id': 1}
+
 
     def get_model(self, num_cells, in_channels=1, out_channels=1):
         """ Builds a network with the desired modules
@@ -469,7 +481,10 @@ class ModelParams(dj.Lookup):
 
         # Build aggregator
         agg_type = self.fetch1('agg_type')
-        if agg_type in ['factorized', 'linear']:
+        if agg_type == 'gaussian':
+            use_full_cov = (GaussianAggParams & self).fetch1('full_covariance')
+            agg_kwargs = {'full_covariance': bool(use_full_cov)}
+        elif agg_type in ['factorized', 'linear']:
             agg_kwargs = {'in_height': core.out_height, 'in_width': core.out_width}
         else:
             agg_kwargs = {}

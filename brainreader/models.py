@@ -483,12 +483,17 @@ class GaussianAggregator(nn.Module):
     
     Arguments:
         num_cells (int): Number of cells in the output.
+        full_covariance(bool): Whether to use a full covariance matrix. Learns 5 
+            parameters (2 means, 2 stds and cov_xy).
     """
-    def __init__(self, num_cells):
+    def __init__(self, num_cells, full_covariance=True):
         super().__init__()
         self._xy_mean = nn.Parameter(torch.zeros(num_cells, 2))
         self._xy_std = nn.Parameter(torch.zeros(num_cells, 2))
-        self._corr_xy = nn.Parameter(torch.zeros(num_cells))
+        if full_covariance:
+            self._corr_xy = nn.Parameter(torch.zeros(num_cells))
+        else:  # don't learn the correlation
+            self.register_buffer('_corr_xy', torch.zeros(num_cells))
 
     @property
     def xy_mean(self):
@@ -594,8 +599,6 @@ class FactorizedAggregator(nn.Module):
             A (num_cells, in_height, in_width) tensor with the mask that each cell applied 
             to the intermediate representation to obtain its feature vector.
         """
-        # TODO: i could receive in_height and in_width here to keep the interface
-        # consistent and make sure it agrees  with params size
         masks = self.mask_y.unsqueeze(-1) * self.mask_x.unsqueeze(-2)
         masks = masks / masks.sum(dim=(-1, -2), keepdims=True)
         return masks
