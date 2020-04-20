@@ -41,8 +41,8 @@ RUN apt update && \
 # Install pytorch 
 RUN pip3 install torch torchvision
 
-# Install datajoint
-RUN pip3 install datajoint
+# Install other dependencies
+RUN pip3 install datajoint scikit-learn
 
 # Install featurevis
 RUN pip3 install -e /src/featurevis
