@@ -316,7 +316,7 @@ class Responses(dj.Computed):
 
         # Get trial times for all images in scan
         print('Getting onset and offset times for each image...')
-        trials_rel = stimulus.Trial * stimulus.Frame & (Scan.Image & key)
+        trials_rel = stimulus.Trial * stimulus.Frame & scan_key & (Scan.Image & key)
         flip_times, im_classes, im_ids = trials_rel.fetch('flip_times', 'image_class',
                                                           'image_id', squeeze=True,
                                                           order_by='trial_idx')
