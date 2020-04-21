@@ -17,7 +17,13 @@ dj.config['stores'] = {
 
 # Scans with training and testing images shown to mice
 scans = [
-    {'animal_id': 20892, 'session': 10, 'scan_idx': 10}, ]
+    {'animal_id': 20892, 'session': 10, 'scan_idx': 10}, # small FOV, 4 areas 
+    {'animal_id': 20892, 'session': 9, 'scan_idx': 10},
+    {'animal_id': 20892, 'session': 9, 'scan_idx': 11},
+    {'animal_id': 23555, 'session': 26, 'scan_idx': 19}, # eye closed for 15 mins
+    {'animal_id': 23555, 'session': 26, 'scan_idx': 20},
+    {'animal_id': 23656, 'session': 10, 'scan_idx': 20},
+    {'animal_id': 23656, 'session': 10, 'scan_idx': 21}, ]
 
 
 @schema
@@ -65,7 +71,7 @@ class Scan(dj.Computed):
         stack_y:    float       # y position in stack coordinates
         stack_z:    float       # z position in stack coordinates (0 is usually surface depth)
         is_soma:    boolean     # whether it was classified as soma by the 2-d classifier
-        brain_area: varchar(5)  # what area is this unit from
+        brain_area: varchar(8)  # what area is this unit from
         layer:      varchar(5)  # layer to which this cell belongs
         ms_delay:   smallint    # delay in milliseconds from start of the volume
         edge_distance: float    # (um) distance to the closest edge (vertical or horizontal) of the field
@@ -78,8 +84,7 @@ class Scan(dj.Computed):
         image_class: varchar(32) # type of image presented (same as in stimulus.StaticImage)
         image_id:   int         # id of this image (same as in stimulus.StaticImage)           
         ---
-        num_repeats: tinyint    # number of repetitions of this image in this scan
-        condition_hash: varchar(20) # identifying hash in stimulus pipeline for this image (when shown to this scan).
+        num_repeats: tinyint    # number of repetitions of this image in this scan.
         """
 
     def make(self, key):
@@ -147,6 +152,13 @@ class Scan(dj.Computed):
         y_dist = np.minimum(px_y, px_height - px_y) * (um_height / px_height)
         edge_distances = np.minimum(x_dist, y_dist)
 
+        # Check that all units have all properties
+        props = [unit_ids, xs, unit_types, areas, layers, ms_delays, edge_distances]
+        if len(set([len(x) for x in props])) > 1:
+            msg = ('Some units do not have all required info. Check scan has been fully '
+                   'processed and brain and layer assignment has been filled.')
+            raise ValueError(msg)
+
         # Insert units
         units = [{
             'dset_id': dset_id, 'unit_id': unit_id, 'field': field, 'mask_id': mask_id,
@@ -158,7 +170,7 @@ class Scan(dj.Computed):
         self.Unit.insert(units)
 
         # Fill in images shown during this scan
-        images = dj.U('condition_hash', 'image_class',
+        images = dj.U('image_class',
                       'image_id').aggr(stimulus.Frame * stimulus.Trial & key,
                                        num_repeats='COUNT(*)').fetch(as_dict=True)
         self.Image.insert([{'dset_id': dset_id, **im} for im in images])
@@ -285,7 +297,7 @@ class Responses(dj.Computed):
     -> Scan
     """
 
-    class ImageResponses(dj.Part):
+    class PerImage(dj.Part):
         definition = """ # response to a single image
         -> master
         -> Scan.Image
@@ -297,15 +309,14 @@ class Responses(dj.Computed):
     def make(self, key):
         # Get all traces for this scan
         print('Getting traces...')
-        scan_key = {
-            'animal_id': (Scan & key).fetch1('animal_id'),
-            'session': (Scan & key).fetch1('session'),
-            'scan_idx': (Scan & key).fetch1('scan_idx')}
+        animal_id, session, scan_idx = (Scan & key).fetch1('animal_id', 'session',
+                                                           'scan_idx')
+        scan_key = {'animal_id': animal_id, 'session': session, 'scan_idx': scan_idx}
         traces, unit_ids, trace_times = get_traces(scan_key)
 
         # Get trial times for all images in scan
         print('Getting onset and offset times for each image...')
-        trials_rel = stimulus.Trial * dj.U('condition_hash') * Scan.Image & (Scan & key)
+        trials_rel = stimulus.Trial * stimulus.Frame & (Scan.Image & key)
         flip_times, im_classes, im_ids = trials_rel.fetch('flip_times', 'image_class',
                                                           'image_id', squeeze=True,
                                                           order_by='trial_idx')
@@ -351,7 +362,7 @@ class Responses(dj.Computed):
         self.insert1(key)
         for im_class, im_id in set(zip(im_classes, im_ids)):
             im_idx = np.logical_and(im_classes == im_class, im_ids == im_id)
-            self.ImageResponses.insert1({
+            self.PerImage.insert1({
                 **key, 'image_class': im_class, 'image_id': im_id,
                 'response': image_resps[im_idx], 'blank_response': blank_resps[im_idx]})
 

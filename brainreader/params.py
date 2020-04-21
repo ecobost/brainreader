@@ -180,7 +180,7 @@ class DataParams(dj.Lookup):
                 ordered by (image_class, image_id), cells ordered by unit_id.
         """
         # Get all responses
-        responses = (data.Responses.ImageResponses & {'dset_id': dset_id}).fetch(
+        responses = (data.Responses.PerImage & {'dset_id': dset_id}).fetch(
             'response', order_by='image_class, image_id')
 
         # Restrict to right split and average
@@ -193,7 +193,7 @@ class DataParams(dj.Lookup):
         # Normalize
         resp_normalization = self.fetch1('resp_normalization')
         if resp_normalization == 'zscore-blanks':
-            blank_responses = (data.Responses.ImageResponses &
+            blank_responses = (data.Responses.PerImage & 
                                {'dset_id': dset_id}).fetch('blank_response')
             resp_mean = np.concatenate(blank_responses).mean(0)
             resp_std = np.concatenate(blank_responses).std(0)
@@ -286,7 +286,11 @@ class VGGParams(dj.Lookup):
     """
     contents = [
         {'core_id': 1, 'resized_img_dims': 128, 'layers_per_block': [2, 2, 2, 2, 2],
-         'features_per_block': [32, 64, 96, 128, 160], 'use_batchnorm': True}, ]
+         'features_per_block': [32, 64, 96, 128, 160], 'use_batchnorm': True},
+        {'core_id': 2, 'resized_img_dims': 128, 'layers_per_block': [1, 1, 1, 1, 1],
+         'features_per_block': [32, 64, 96, 128, 160], 'use_batchnorm': True},
+        {'core_id': 3, 'resized_img_dims': 128, 'layers_per_block': [2, 2, 2],
+         'features_per_block': [32, 96, 160], 'use_batchnorm': True}, ]
 
 
 @schema
@@ -432,6 +436,16 @@ class ModelParams(dj.Lookup):
             'model_params': i, 'core_type': 'vgg', 'core_id': 1, 'agg_type': 'gaussian',
             'agg_id': 2, 'readout_type': 'mlp', 'readout_id': 1, 'act_type': 'none',
             'act_id': 1}
+
+        # Test smaller VGGs (less layers)
+        cores = [('vgg', 2), ('vgg', 3)]
+        aggregators = [('avg', 1), ('point', 1), ('gaussian', 1), ('factorized', 1),
+                       ('linear', 1)]
+        for i, ((ct, cid), (at, aid)) in enumerate(itertools.product(cores, aggregators),
+                                                   start=i+1):
+            yield {'model_params': i, 'core_type': ct, 'core_id': cid, 'agg_type': at,
+                   'agg_id': aid, 'readout_type': 'mlp', 'readout_id': 1,
+                   'act_type': 'none', 'act_id': 1}
 
 
     def get_model(self, num_cells, in_channels=1, out_channels=1):
