@@ -25,7 +25,7 @@ dj.config['cache'] = '/tmp'
 class TrainedModel(dj.Computed):
     definition = """ # a single trained model
     
-    -> brdata.Scan
+    -> brdata.Responses
     -> params.DataParams
     -> params.ModelParams
     -> params.TrainingParams
@@ -401,31 +401,46 @@ class EnsembleEvaluation(dj.Computed):
         self.insert1({**key, 'val_corr': val_corr, 'test_corr': test_corr})
 
 
-@schema
-class AverageEvaluationInEnsemble(dj.Computed):
-    definition = """ # takes correlation from each model in an ensemble and averages them
-    -> Ensemble
-    ---
-    val_corr:       float       # average val correlation across all models in this ensemble
-    test_corr:      float       # average test correlation across all models in this ensemble
-    val_corrs:      longblob    # all validation correlations in this ensemble
-    test_corrs:     longblob    # all test correlations in this ensemble
-    std_val_corrs:  float       # standard deviation across validation correlations
-    std_test_corrs: float       # standard deviation across test correlations
-    """
+# this works but we don't need it
+# @schema
+# class AverageEvaluationInEnsemble(dj.Computed):
+#     definition = """ # takes correlation from each model in an ensemble and averages them
+#     -> Ensemble
+#     ---
+#     val_corr:       float       # average val correlation across all models in this ensemble
+#     test_corr:      float       # average test correlation across all models in this ensemble
+#     val_corrs:      longblob    # all validation correlations in this ensemble
+#     test_corrs:     longblob    # all test correlations in this ensemble
+#     std_val_corrs:  float       # standard deviation across validation correlations
+#     std_test_corrs: float       # standard deviation across test correlations
+#     """
 
-    def make(self, key):
-        """ 
-        Ensemble evaluation averages the model responses and computes correlations 
-        afterwards, this averges the single model correlations computed in Evaluation. It 
-        does not do any processing.
-        """
-        # Get corrs
-        models = (Ensemble.OneModel & key)
-        val_corrs, test_corrs = (TrainedModel * Evaluation & models).fetch('best_corr', 
-                                                                           'test_corr')
+#     def make(self, key):
+#         """ 
+#         Ensemble evaluation averages the model responses and computes correlations 
+#         afterwards, this averges the single model correlations computed in Evaluation. It 
+#         does not do any processing.
+#         """
+#         # Get corrs
+#         models = (Ensemble.OneModel & key)
+#         val_corrs, test_corrs = (TrainedModel * Evaluation & models).fetch('best_corr', 
+#                                                                            'test_corr')
 
-        # Insert
-        self.insert1({**key, 'val_corr': val_corrs.mean(), 'val_corrs': val_corrs,
-                      'std_val_corrs': val_corrs.std(), 'test_corr': test_corrs.mean(),
-                      'test_corrs': test_corrs, 'std_test_corrs': test_corrs.std()})
+#         # Insert
+#         self.insert1({**key, 'val_corr': val_corrs.mean(), 'val_corrs': val_corrs,
+#                       'std_val_corrs': val_corrs.std(), 'test_corr': test_corrs.mean(),
+#                       'test_corrs': test_corrs, 'std_test_corrs': test_corrs.std()})
+        
+        
+#TODO: 
+# @schema
+# class EnsembleCellEvaluation(dj.Computed):
+#     definition = """ # test correlations per cell
+#     -> Ensemble
+#     ---
+#     val_corrs:      longblob        # validation correlation for each cell in the model
+#     test_corrs:     longblob        # validation correlation for each cell in the model
+#     """
+#     def make(self, key):
+#         # TODO: Copy from EnsembleEvaluation and maybe modify compute_correlation to return results per cell
+#         # TODO: Maybe add fraction oracle scores here too?  
