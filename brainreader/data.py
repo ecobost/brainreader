@@ -86,6 +86,7 @@ class Scan(dj.Computed):
         ---
         num_repeats: tinyint    # number of repetitions of this image in this scan.
         """
+        #TODO: Add trials here, each image could have one or more trials, so it will need to be a longblob
 
     def make(self, key):
         # Assign dset id
