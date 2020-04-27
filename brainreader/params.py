@@ -36,7 +36,9 @@ class ResponseNormalization(dj.Lookup):
         {'resp_normalization': 'zscore-blanks',
          'description': 'Normalize responses (per cell) using mean and std calculated in '
                         'responses to all blank images'},
-        # {'resp_normalization': 'stddiv-blanks', 'description': ''}
+        {'resp_normalization': 'zscore-resps',
+         'description': 'Normalize responses (per cell) using mean and std calculated '
+         'over responses to training images'},
     ]
 
 
@@ -72,11 +74,16 @@ class DataParams(dj.Lookup):
     -> ResponseNormalization        # how neural responses will be normalized
     """
     contents = [
-        {'data_params': 1, 'test_set': 'repeats', 'split_seed': 1234,
-         'train_percentage': 0.9, 'image_height': 144, 'image_width': 256,
-         'img_normalization': 'zscore-train', 'only_soma': False, 'discard_edge': 8,
-         'discard_unknown': True, 'resp_normalization': 'zscore-blanks'
-         },
+        {
+            'data_params': 1, 'test_set': 'repeats', 'split_seed': 1234,
+            'train_percentage': 0.9, 'image_height': 144, 'image_width': 256,
+            'img_normalization': 'zscore-train', 'only_soma': False, 'discard_edge': 8,
+            'discard_unknown': True, 'resp_normalization': 'zscore-blanks'},
+        {
+            'data_params': 2, 'test_set': 'repeats', 'split_seed': 1234,
+            'train_percentage': 0.9, 'image_height': 144, 'image_width': 256,
+            'img_normalization': 'zscore-train', 'only_soma': False, 'discard_edge': 8,
+            'discard_unknown': True, 'resp_normalization': 'zscore-resps'},
     ]
 
     def get_images(self, dset_id, split='train'):
@@ -164,6 +171,7 @@ class DataParams(dj.Lookup):
 
         return mask
 
+    #TODO: maybe add a parameter to return the blank responses (rather than actual responses)
     def get_responses(self, dset_id, split='train', avg_repeats=True):
         """ Gets responses obtained in this dataset
 
@@ -180,29 +188,34 @@ class DataParams(dj.Lookup):
                 ordered by (image_class, image_id), cells ordered by unit_id.
         """
         # Get all responses
-        responses = (data.Responses.PerImage & {'dset_id': dset_id}).fetch(
+        all_responses = (data.Responses.PerImage & {'dset_id': dset_id}).fetch(
             'response', order_by='image_class, image_id')
 
-        # Restrict to right split and average
+        # Restrict to responses for images in desired split (and average repeats)
         if split is not None:
             img_mask = self.get_image_mask(dset_id, split)
-            responses = responses[img_mask]
+            responses = all_responses[img_mask]
         responses = np.stack([r.mean(0) for r in responses] if avg_repeats else responses)
         # will fail if avg_repeats==False and responses have a variable number of repeats
 
         # Normalize
         resp_normalization = self.fetch1('resp_normalization')
         if resp_normalization == 'zscore-blanks':
-            blank_responses = (data.Responses.PerImage & 
-                               {'dset_id': dset_id}).fetch('blank_response')
-            resp_mean = np.concatenate(blank_responses).mean(0)
-            resp_std = np.concatenate(blank_responses).std(0)
+            blank_responses = np.concatenate(
+                (data.Responses.PerImage & {'dset_id': dset_id}).fetch('blank_response'))
+            resp_mean = blank_responses.mean(0)
+            resp_std = blank_responses.std(0)
+        elif resp_normalization == 'zscore-resps':
+            img_mask = self.get_image_mask(dset_id, split='train')
+            train_responses = np.concatenate(all_responses[img_mask])
+            resp_mean = train_responses.mean(0)
+            resp_std = train_responses.std(0)
         else:
             msg = f'Response normalization {resp_normalization} not implemented'
             raise NotImplementedError(msg)
         responses = (responses - resp_mean) / resp_std
 
-        # Restrict to right cells
+        # Restrict to desired cells
         cell_mask = self.get_cell_mask(dset_id)
         responses = responses[..., cell_mask]
 
