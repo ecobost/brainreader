@@ -21,6 +21,32 @@ dj.config['stores'] = {
 dj.config['cache'] = '/tmp'
 
 
+def compute_correlation(resps1, resps2):
+    """ Compute average correlation between two sets of responses.
+    
+    Computes correlation per cell (i.e., across images) and returns the average over 
+    cells.
+    
+    Arguments:
+        resps1, resps2 (torch.tensor): A (num_images, num_cells) tensor.
+    
+    Returns:
+        corr (float): Average correlation coefficient.
+    
+    Note:
+        Not differentiable.
+    """
+    corrs = utils.compute_correlation(resps1.detach().cpu().numpy().T,
+                                      resps2.detach().cpu().numpy().T)
+
+    # Check that all corrs are valid
+    bad_cells = (corrs < -1) | (corrs > 1) | np.isnan(corrs) | np.isinf(corrs)
+    if np.any(bad_cells):
+        print('Warning: Unstable correlation (setting to -1).')
+        corrs[bad_cells] = -1
+    
+    return corrs.mean()
+
 @schema
 class TrainedModel(dj.Computed):
     definition = """ # a single trained model
@@ -170,14 +196,13 @@ class TrainedModel(dj.Computed):
                 optimizer.step()
 
                 # Compute correlation
-                with torch.no_grad():
-                    corr =  utils.compute_correlation(responses, pred_responses)
+                corr = compute_correlation(responses, pred_responses)
 
                 # Record training losses
                 train_losses.append(loss.item())
-                train_corrs.append(corr.item())
+                train_corrs.append(corr)
                 utils.log('Training loss (correlation): {:.5f} ({:.3f})'.format(
-                    loss.item(), corr.item()))
+                    loss.item(), corr))
 
             # Compute validation metrics and save best model
             if epoch % train_params['val_epochs'] == 0:
@@ -190,7 +215,7 @@ class TrainedModel(dj.Computed):
                     model.train()
 
                     val_loss = TrainedModel._compute_loss(responses, pred_responses)
-                    val_corr = utils.compute_correlation(responses, pred_responses)
+                    val_corr = compute_correlation(responses, pred_responses)
 
                 # Check for divergence
                 if torch.isnan(val_loss) or torch.isinf(val_loss):
@@ -198,17 +223,17 @@ class TrainedModel(dj.Computed):
 
                 # Record validation loss
                 val_losses.append(val_loss.item())
-                val_corrs.append(val_corr.item())
+                val_corrs.append(val_corr)
                 utils.log('Validation loss (correlation): {:.5f} ({:.3f})'.format(
-                    val_loss.item(), val_corr.item()))
+                    val_loss.item(), val_corr))
 
                 # Reduce learning rate
-                scheduler.step(val_corr.item())
+                scheduler.step(val_corr)
 
                 # Save best model yet (if needed)
-                if val_corr.item() > best_corr:
+                if val_corr > best_corr:
                     utils.log('Saving best model')
-                    best_corr = val_corr.item()
+                    best_corr = val_corr
                     best_epoch = epoch
                     best_loss = val_loss.item()
                     best_model = copy.deepcopy(model).cpu()
@@ -278,7 +303,7 @@ class Evaluation(dj.Computed):
             responses = torch.cat([r[0] for r in all_resps])
             pred_responses = torch.cat([r[1] for r in all_resps])
 
-            corr = utils.compute_correlation(responses, pred_responses).item()
+            corr = compute_correlation(responses, pred_responses)
 
         # Insert
         self.insert1({**key, 'test_corr': corr})
@@ -389,13 +414,13 @@ class EnsembleEvaluation(dj.Computed):
             all_resps = [(r.cuda(), model(im.cuda())) for im, r in val_dloader]
             responses = torch.cat([r[0] for r in all_resps])
             pred_responses = torch.cat([r[1] for r in all_resps])
-            val_corr = utils.compute_correlation(responses, pred_responses).item()
+            val_corr = compute_correlation(responses, pred_responses)
 
             # Compute test correlation
             all_resps = [(r.cuda(), model(im.cuda())) for im, r in test_dloader]
             responses = torch.cat([r[0] for r in all_resps])
             pred_responses = torch.cat([r[1] for r in all_resps])
-            test_corr = utils.compute_correlation(responses, pred_responses).item()
+            test_corr = compute_correlation(responses, pred_responses)
 
         # Insert
         self.insert1({**key, 'val_corr': val_corr, 'test_corr': test_corr})
@@ -416,23 +441,23 @@ class EnsembleEvaluation(dj.Computed):
 #     """
 
 #     def make(self, key):
-#         """ 
-#         Ensemble evaluation averages the model responses and computes correlations 
-#         afterwards, this averges the single model correlations computed in Evaluation. It 
+#         """
+#         Ensemble evaluation averages the model responses and computes correlations
+#         afterwards, this averges the single model correlations computed in Evaluation. It
 #         does not do any processing.
 #         """
 #         # Get corrs
 #         models = (Ensemble.OneModel & key)
-#         val_corrs, test_corrs = (TrainedModel * Evaluation & models).fetch('best_corr', 
+#         val_corrs, test_corrs = (TrainedModel * Evaluation & models).fetch('best_corr',
 #                                                                            'test_corr')
 
 #         # Insert
 #         self.insert1({**key, 'val_corr': val_corrs.mean(), 'val_corrs': val_corrs,
 #                       'std_val_corrs': val_corrs.std(), 'test_corr': test_corrs.mean(),
 #                       'test_corrs': test_corrs, 'std_test_corrs': test_corrs.std()})
-        
-        
-#TODO: 
+
+
+#TODO:
 # @schema
 # class EnsembleCellEvaluation(dj.Computed):
 #     definition = """ # test correlations per cell
@@ -443,4 +468,4 @@ class EnsembleEvaluation(dj.Computed):
 #     """
 #     def make(self, key):
 #         # TODO: Copy from EnsembleEvaluation and maybe modify compute_correlation to return results per cell
-#         # TODO: Maybe add fraction oracle scores here too?  
+#         # TODO: Maybe add fraction oracle scores here too?

@@ -34,31 +34,24 @@ def log(*messages):
 
 
 def compute_correlation(x, y, eps=1e-9):
-    """ Compute correlation between two sets of neural responses.
-    
-    Computes correlation per cell (i.e., across images) and returns the average across 
-    cells.
+    """ Compute Pearson's correlation for each row in x and y.
     
     Arguments:
-        x, y (torch.tensor): A (num_images, num_cells) tensor.
+        x, y (np.array): A (num_variables, num_observations) array containining the 
+            variables to correlate.
         eps (float): Small value to avoid division by zero.
     
     Returns:
-        corr (float): Average correlation coefficient.
+        corrs (np.array): A (num_variables) array with the correlations between each 
+        variable in x and y.  
     """
-    # Compute correlation per cell
-    x_res = x - x.mean(dim=0)
-    y_res = y - y.mean(dim=0)
-    corrs = (x_res * y_res).sum(dim=0) / (torch.sqrt(
-        (x_res**2).sum(dim=0) * (y_res**2).sum(dim=0)) + eps)
+    # Compute correlation per variable
+    x_res = x - x.mean(axis=-1, keepdims=True)
+    y_res = y - y.mean(axis=-1, keepdims=True)
+    corrs = (x_res * y_res).sum(axis=-1) / (np.sqrt((x_res**2).sum(axis=-1) * 
+                                                    (y_res**2).sum(axis=-1)) + eps)
 
-    # Check that all of corrs are valid
-    bad_cells = (corrs < -1) | (corrs > 1) | torch.isnan(corrs) | torch.isinf(corrs)
-    if torch.any(bad_cells):
-        print('Warning: Unstable correlation (setting to -1).')
-        corrs[bad_cells] = -1
-
-    return corrs.mean()
+    return corrs
 
 
 def bivariate_gaussian(xy, xy_mean, xy_std, corr_xy, normalize=False):
