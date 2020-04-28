@@ -391,15 +391,16 @@ class EnsembleEvaluation(dj.Computed):
     """
     def make(self, key):
         # Get validation data
-        dset_id = key['ensemble_dset']
-        val_images = (params.DataParams & key).get_images(dset_id, split='val')
-        val_responses = (params.DataParams & key).get_responses(dset_id, split='val')
+        dset_id = (dj.U('dset_id') & (Ensemble.OneModel & key)).fetch1('dset_id')
+        dataparams = params.DataParams & (Ensemble.OneModel & key)
+        val_images = dataparams.get_images(dset_id, split='val')
+        val_responses = dataparams.get_responses(dset_id, split='val')
         val_dset = datasets.EncodingDataset(val_images, val_responses)
         val_dloader = data.DataLoader(val_dset, batch_size=128, num_workers=4)
 
         # Get test data
-        test_images = (params.DataParams & key).get_images(dset_id, split='test')
-        test_responses = (params.DataParams & key).get_responses(dset_id, split='test')
+        test_images = dataparams.get_images(dset_id, split='test')
+        test_responses = dataparams.get_responses(dset_id, split='test')
         test_dset = datasets.EncodingDataset(test_images, test_responses)
         test_dloader = data.DataLoader(test_dset, batch_size=128, num_workers=4)
 
