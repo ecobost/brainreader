@@ -33,13 +33,18 @@ class ResponseNormalization(dj.Lookup):
     description:        varchar(256)
     """
     contents = [
-        {'resp_normalization': 'zscore-blanks',
-         'description': 'Normalize responses (per cell) using mean and std calculated in '
-                        'responses to all blank images'},
-        {'resp_normalization': 'zscore-resps',
-         'description': 'Normalize responses (per cell) using mean and std calculated '
-         'over responses to training images'},
-    ]
+        {
+            'resp_normalization': 'zscore-blanks',
+            'description': 'Normalize responses (per cell) using mean and std calculated in '
+            'responses to all blank images'},
+        {
+            'resp_normalization': 'zscore-resps',
+            'description': 'Normalize responses (per cell) using mean and std calculated '
+            'over responses to training images'},
+        {
+            'resp_normalization': 'stddev-blanks',
+            'description': 'Normalize responses (per cell) by dividing by std calculated '
+            'over responses to blank images. Does not subtract the mean.'},]
 
 
 @schema
@@ -73,18 +78,17 @@ class DataParams(dj.Lookup):
     discard_unknown:    boolean     # whether to discard cells from an unknown area
     -> ResponseNormalization        # how neural responses will be normalized
     """
-    contents = [
-        {
-            'data_params': 1, 'test_set': 'repeats', 'split_seed': 1234,
-            'train_percentage': 0.9, 'image_height': 144, 'image_width': 256,
-            'img_normalization': 'zscore-train', 'only_soma': False, 'discard_edge': 8,
-            'discard_unknown': True, 'resp_normalization': 'zscore-blanks'},
-        {
-            'data_params': 2, 'test_set': 'repeats', 'split_seed': 1234,
-            'train_percentage': 0.9, 'image_height': 144, 'image_width': 256,
-            'img_normalization': 'zscore-train', 'only_soma': False, 'discard_edge': 8,
-            'discard_unknown': True, 'resp_normalization': 'zscore-resps'},
-    ]
+
+    @property
+    def contents(self):
+        resp_norms = ['zscore-blanks', 'zscore-resps', 'stddev-blanks']
+        for i, resp_norm in enumerate(resp_norms, start=1):
+            yield {
+                'data_params': i, 'test_set': 'repeats', 'split_seed': 1234,
+                'train_percentage': 0.9, 'image_height': 144, 'image_width': 256,
+                'img_normalization': 'zscore-train', 'only_soma': False,
+                'discard_edge': 8, 'discard_unknown': True,
+                'resp_normalization': resp_norm}
 
     def get_images(self, dset_id, split='train'):
         """ Gets images shown during this dataset
@@ -200,16 +204,21 @@ class DataParams(dj.Lookup):
 
         # Normalize
         resp_normalization = self.fetch1('resp_normalization')
-        if resp_normalization == 'zscore-blanks':
-            blank_responses = np.concatenate(
-                (data.Responses.PerImage & {'dset_id': dset_id}).fetch('blank_response'))
-            resp_mean = blank_responses.mean(0)
-            resp_std = blank_responses.std(0)
-        elif resp_normalization == 'zscore-resps':
+        if resp_normalization == 'zscore-resps':
             img_mask = self.get_image_mask(dset_id, split='train')
             train_responses = np.concatenate(all_responses[img_mask])
             resp_mean = train_responses.mean(0)
             resp_std = train_responses.std(0)
+        elif resp_normalization == 'zscore-blanks':
+            blank_responses = np.concatenate(
+                (data.Responses.PerImage & {'dset_id': dset_id}).fetch('blank_response'))
+            resp_mean = blank_responses.mean(0)
+            resp_std = blank_responses.std(0)
+        elif resp_normalization == 'stddev-blanks':
+            blank_responses = np.concatenate(
+                (data.Responses.PerImage & {'dset_id': dset_id}).fetch('blank_response'))
+            resp_mean = 0  # do not subtract the mean
+            resp_std = blank_responses.std(0)
         else:
             msg = f'Response normalization {resp_normalization} not implemented'
             raise NotImplementedError(msg)
@@ -272,13 +281,13 @@ class TrainingParams(dj.Lookup):
         lrs = [0.1, 1, 10]
         wds = [0, 1e-4]
         batch_sizes = [32, 64]
-        #TODO: losses = ['mse', 'poisson']
-        for i, (seed, lr, wd,
-                bs) in enumerate(itertools.product(seeds, lrs, wds, batch_sizes),
+        losses = ['mse', 'poisson']
+        for i, (loss, seed, lr, wd,
+                bs) in enumerate(itertools.product(losses, seeds, lrs, wds, batch_sizes),
                                  start=1):
             yield {'training_params': i, 'seed': seed, 'num_epochs': 200, 'val_epochs': 1,
                    'batch_size': bs, 'learning_rate': lr, 'momentum': 0.9,
-                   'weight_decay': wd, 'loss_function': 'mse', 'lr_decay': 0.1,
+                   'weight_decay': wd, 'loss_function': loss, 'lr_decay': 0.1,
                    'decay_epochs': 10}
 
 
@@ -408,12 +417,15 @@ class NoActParams(dj.Lookup):
     """
     contents = [{'act_id': 1}, ]
 
-# @schema
-# class ExponentialActParams(dj.Lookup):
-#     definition = """ # final activation applied to the output of the readout
-#     act_id:                 smallint
-#     """
-#     contents = [{'act_id': 1}, ]
+@schema
+class ExponentialActParams(dj.Lookup):
+    definition = """ # final activation applied to the output of the readout
+    act_id:                 smallint
+    ---
+    desired_mean:           float       # assuming input ~ N(0, 1), this will be the mean of the output of this layer
+    desired_std:            float       # assuming input ~ N(0, 1), this will be the std of the output of this layer
+    """
+    contents = [{'act_id': 1, 'desired_mean': 1, 'desired_std': 0.2}, ]
 
 
 @schema
@@ -459,6 +471,13 @@ class ModelParams(dj.Lookup):
             yield {'model_params': i, 'core_type': ct, 'core_id': cid, 'agg_type': at,
                    'agg_id': aid, 'readout_type': 'mlp', 'readout_id': 1,
                    'act_type': 'none', 'act_id': 1}
+
+        # Add models with an exponential final activation (to use poisson loss)
+        i = i + 1
+        yield {
+            'model_params': i, 'core_type': 'vgg', 'core_id': 1, 'agg_type': 'point',
+            'agg_id': 1, 'readout_type': 'mlp', 'readout_id': 1, 'act_type': 'exp',
+            'act_id': 1}
 
 
     def get_model(self, num_cells, in_channels=1, out_channels=1):
@@ -530,7 +549,14 @@ class ModelParams(dj.Lookup):
 
         # Build final activation
         act_type = self.fetch1('act_type')
-        final_activation = models.build_activation(act_type)
+        if act_type == 'none':
+            act_kwargs = {}
+        elif act_type == 'exp':
+            m, s = (ExponentialActParams & self).fetch1('desired_mean', 'desired_std')
+            act_kwargs = {'output_mean': m, 'output_std': s}
+        else:
+            raise NotImplementedError(f'Activation {act_type} not implemented.')
+        final_activation = models.build_activation(act_type, **act_kwargs)
 
         # Build final model
         final_model = models.CorePlusReadout(core, aggregator, readout, final_activation)

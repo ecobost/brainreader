@@ -516,7 +516,7 @@ class GaussianAggregator(nn.Module):
         input_ = input_.view(*input_.shape[:2], -1).transpose(-1, -2) # N x hw x nchannels
         masks = masks.view(masks.shape[0], -1) # num_cells x hw
         samples = torch.matmul(masks, input_) # N x num_cells x num_channels
-        
+
         return samples
 
     def init_parameters(self):
@@ -827,15 +827,31 @@ class ExponentialActivation(nn.Module):
     """ Returns exp(x) and squeezes (if possible) the features/channel dimension.
     
     f: R -> R+
+    
+    Arguments:
+        output_mean (float): Assuming the input is sampled form a N(0, 1) distribution, 
+            the output of this module will be a lognormal distribution with this mean.
+        output_std (float): Assuming the input is sampled form a N(0, 1) distribution, 
+            the output of this module will be a lognormal distribution with this std.
     """
+    def __init__(self, output_mean=1, output_std=0.2):
+        super().__init__()
+
+        # Compute the required mean and std of the input to get the desired output stats
+        import math
+        input_var = math.log((output_std / output_mean)**2 + 1)
+        self._input_mean = math.log(output_mean) - input_var / 2
+        self._input_std = math.sqrt(input_var)
+
     def forward(self, input_):
-        return torch.exp(input_).squeeze(-1)
+        rescaled = input_ * self._input_std + self._input_mean
+        return torch.exp(rescaled).squeeze(-1)
 
     def init_parameters(self):
         pass
 
 activations = {'none': NoActivation, 'exp': ExponentialActivation}
-def build_activation(type_='exp', **kwargs):
+def build_activation(type_='none', **kwargs):
     """ Build a final activation module
     
     Arguments:
