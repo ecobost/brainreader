@@ -69,6 +69,12 @@ class TrainedModel(dj.Computed):
     training_time:  smallint        # how many minutes it took to train this network
     training_ts=CURRENT_TIMESTAMP: timestamp
     """
+    # @property
+    # def key_source(self):
+    #     """ Restrict to only the models that work well. """
+    #     all_keys = (brdata.Responses * params.DataParams * params.ModelParams * 
+    #                 params.TrainingParams)
+    #     return all_keys & {'data_params': 1, 'model_params': 2} & 'training_params <= 60'
 
     @staticmethod
     def _compute_loss(pred_responses, responses, loss_function='mse'):
@@ -127,7 +133,7 @@ class TrainedModel(dj.Computed):
         optimizer = optim.SGD(model.parameters(), lr=float(train_params['learning_rate']),
                               momentum=float(train_params['momentum']), nesterov=True,
                               weight_decay=float(train_params['weight_decay']))
-        scheduler = lr_scheduler.ReduceLROnPlateau(optimizer,
+        scheduler = lr_scheduler.ReduceLROnPlateau(optimizer, mode='max',
                                                    factor=float(train_params['lr_decay']),
                                                    patience=int(round(
                                                        train_params['decay_epochs'] /
@@ -170,26 +176,6 @@ class TrainedModel(dj.Computed):
                 # Check for divergence
                 if torch.isnan(loss) or torch.isinf(loss):
                     raise ValueError('Loss diverged')
-                    #TODO: Should I store models that diverged?
-                    # Will make the ensembling below a bit more bothersome
-                    # utils.log('Error: Loss diverged!')
-
-                    # utils.log('Inserting results')
-                    # results = key.copy()
-                    # results['train_loss'] = train_loss
-                    # results['train_accuracy'] = train_acc
-                    # results['val_loss'] = val_loss
-                    # results['val_accuracy'] = val_acc
-                    # results['diverged'] = True  # !!
-                    # results['best_model'] = {k: v.cpu().numpy() for k, v in
-                    #                          best_model.state_dict().items()}
-                    # results['best_epoch'] = best_epoch
-                    # results['best_val_accuracy'] = best_val_acc
-                    # results['final_model'] = {k: v.cpu().numpy() for k, v in
-                    #                           net.state_dict().items()}
-                    # results['training_time'] = round((time.time() - start_time) / 60)
-                    # self.insert1(results)
-                    # return -1
 
                 # Backprop
                 loss.backward()
@@ -237,6 +223,12 @@ class TrainedModel(dj.Computed):
                     best_epoch = epoch
                     best_loss = val_loss.item()
                     best_model = copy.deepcopy(model).cpu()
+                
+                # Stop training if validation has not improved in x number of epochs
+                if epoch - best_epoch > train_params['stopping_epochs']:
+                    utils.log('Stopping training. Validation has not improved in '
+                              '{stopping_epochs} epochs.'.format(**train_params))
+                    break
 
         # Clean up (if needed)
         training_time = round((time.time() - start_time) / 60) # in minutes
