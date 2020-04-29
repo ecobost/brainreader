@@ -81,7 +81,7 @@ class DataParams(dj.Lookup):
 
     @property
     def contents(self):
-        resp_norms = ['zscore-blanks', 'zscore-resps', 'stddev-blanks']
+        resp_norms = ['zscore-blanks']#, 'zscore-resps', 'stddev-blanks']
         for i, resp_norm in enumerate(resp_norms, start=1):
             yield {
                 'data_params': i, 'test_set': 'repeats', 'split_seed': 1234,
@@ -272,23 +272,24 @@ class TrainingParams(dj.Lookup):
     weight_decay:       decimal(7, 5) # weight for l2 regularization
     loss_function:      varchar(8)  # loss function to use ('mse' or 'poisson')
     lr_decay:           decimal(2, 2) # factor multiplying learning rate when decreasing
-    decay_epochs:       smallint    # number of epochs to wait before decreasing learning rate if val loss has not improved
+    decay_epochs:       smallint    # number of epochs to wait before decreasing learning rate if val correlation has not improved
+    stopping_epochs:    smallint    # early stop training after this number of epochs without an improvement in val correlation
     """
 
     @property
     def contents(self):
-        seeds = [1234, 2345, 4567, 5678, 6789]
+        seeds = [1234]#, 2345, 4567, 5678, 6789]
         lrs = [0.1, 1, 10]
-        wds = [0, 1e-4]
+        wds = [0, 1e-5, 1e-3]
         batch_sizes = [32, 64]
-        losses = ['mse', 'poisson']
+        losses = ['mse']#, 'poisson']
         for i, (loss, seed, lr, wd,
                 bs) in enumerate(itertools.product(losses, seeds, lrs, wds, batch_sizes),
                                  start=1):
             yield {'training_params': i, 'seed': seed, 'num_epochs': 200, 'val_epochs': 1,
                    'batch_size': bs, 'learning_rate': lr, 'momentum': 0.9,
                    'weight_decay': wd, 'loss_function': loss, 'lr_decay': 0.1,
-                   'decay_epochs': 10}
+                   'decay_epochs': 10, 'stopping_epochs': 50}
 
 
 
@@ -309,10 +310,11 @@ class VGGParams(dj.Lookup):
     contents = [
         {'core_id': 1, 'resized_img_dims': 128, 'layers_per_block': [2, 2, 2, 2, 2],
          'features_per_block': [32, 64, 96, 128, 160], 'use_batchnorm': True},
-        {'core_id': 2, 'resized_img_dims': 128, 'layers_per_block': [1, 1, 1, 1, 1],
-         'features_per_block': [32, 64, 96, 128, 160], 'use_batchnorm': True},
-        {'core_id': 3, 'resized_img_dims': 128, 'layers_per_block': [2, 2, 2],
-         'features_per_block': [32, 96, 160], 'use_batchnorm': True}, ]
+        # {'core_id': 2, 'resized_img_dims': 128, 'layers_per_block': [1, 1, 1, 1, 1],
+        #  'features_per_block': [32, 64, 96, 128, 160], 'use_batchnorm': True},
+        # {'core_id': 3, 'resized_img_dims': 128, 'layers_per_block': [2, 2, 2],
+        #  'features_per_block': [32, 96, 160], 'use_batchnorm': True}, 
+        ]
 
 
 @schema
@@ -380,7 +382,8 @@ class GaussianAggParams(dj.Lookup):
     """
     contents = [
         {'agg_id': 1, 'full_covariance': True},
-        {'agg_id': 2, 'full_covariance': False}, ]
+        #{'agg_id': 2, 'full_covariance': False},
+         ]
 
 
 @schema
@@ -455,29 +458,29 @@ class ModelParams(dj.Lookup):
                    'agg_id': aid, 'readout_type': 'mlp', 'readout_id': 1,
                    'act_type': 'none', 'act_id': 1}
 
-        # Test gaussian aggregator with 4 rather than 5 params
-        i = i + 1
-        yield {
-            'model_params': i, 'core_type': 'vgg', 'core_id': 1, 'agg_type': 'gaussian',
-            'agg_id': 2, 'readout_type': 'mlp', 'readout_id': 1, 'act_type': 'none',
-            'act_id': 1}
+        # # Test gaussian aggregator with 4 rather than 5 params
+        # i = i + 1
+        # yield {
+        #     'model_params': i, 'core_type': 'vgg', 'core_id': 1, 'agg_type': 'gaussian',
+        #     'agg_id': 2, 'readout_type': 'mlp', 'readout_id': 1, 'act_type': 'none',
+        #     'act_id': 1}
 
-        # Test smaller VGGs (less layers)
-        cores = [('vgg', 2), ('vgg', 3)]
-        aggregators = [('avg', 1), ('point', 1), ('gaussian', 1), ('factorized', 1),
-                       ('linear', 1)]
-        for i, ((ct, cid), (at, aid)) in enumerate(itertools.product(cores, aggregators),
-                                                   start=i+1):
-            yield {'model_params': i, 'core_type': ct, 'core_id': cid, 'agg_type': at,
-                   'agg_id': aid, 'readout_type': 'mlp', 'readout_id': 1,
-                   'act_type': 'none', 'act_id': 1}
+        # # Test smaller VGGs (less layers)
+        # cores = [('vgg', 2), ('vgg', 3)]
+        # aggregators = [('avg', 1), ('point', 1), ('gaussian', 1), ('factorized', 1),
+        #                ('linear', 1)]
+        # for i, ((ct, cid), (at, aid)) in enumerate(itertools.product(cores, aggregators),
+        #                                            start=i+1):
+        #     yield {'model_params': i, 'core_type': ct, 'core_id': cid, 'agg_type': at,
+        #            'agg_id': aid, 'readout_type': 'mlp', 'readout_id': 1,
+        #            'act_type': 'none', 'act_id': 1}
 
-        # Add models with an exponential final activation (to use poisson loss)
-        i = i + 1
-        yield {
-            'model_params': i, 'core_type': 'vgg', 'core_id': 1, 'agg_type': 'point',
-            'agg_id': 1, 'readout_type': 'mlp', 'readout_id': 1, 'act_type': 'exp',
-            'act_id': 1}
+        # # Add models with an exponential final activation (to use poisson loss)
+        # i = i + 1
+        # yield {
+        #     'model_params': i, 'core_type': 'vgg', 'core_id': 1, 'agg_type': 'point',
+        #     'agg_id': 1, 'readout_type': 'mlp', 'readout_id': 1, 'act_type': 'exp',
+        #     'act_id': 1}
 
 
     def get_model(self, num_cells, in_channels=1, out_channels=1):
