@@ -64,15 +64,15 @@ spec:
         operator: "Equal"
         value: "true"
         effect: "NoSchedule"
-      # affinity: # Affinity to select only nodes with x amount of memory
-      #   nodeAffinity:
-      #     requiredDuringSchedulingIgnoredDuringExecution: # Require nodes to have this label
-      #       nodeSelectorTerms:
-      #       - matchExpressions:
-      #         - key: gpu_mem_size # Target label is gpu_mem_size
-      #           operator: In # Key must have one of the following values
-      #           values:
-      #           - 11GB
-      #           - 12GB
-      #           - 24GB
-      #           - 32GB
+      affinity: # Affinity to select only nodes with x amount of memory
+        nodeAffinity:
+          requiredDuringSchedulingIgnoredDuringExecution: # Require nodes to have this label
+            nodeSelectorTerms:
+            - matchExpressions:
+              - key: gpu_mem_size # Target label is gpu_mem_size
+                operator: In # Key must have one of the following values
+                values:
+                - 11GB
+                - 12GB
+                - 24GB
+                - 32GB
