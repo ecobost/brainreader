@@ -278,10 +278,10 @@ class TrainingParams(dj.Lookup):
 
     @property
     def contents(self):
-        seeds = [1234]#, 2345, 4567, 5678, 6789]
-        lrs = [0.1, 1, 10, 36]
-        wds = [0, 1e-7, 1e-6, 1e-5, 1e-4]
-        batch_sizes = [32, 64]
+        seeds = [2345]#[1234, 2345, 4567, 5678, 6789]
+        lrs = [1, 10]
+        wds = [1e-6, 1e-5, 1e-4, 1e-3] # maybe drop zero too
+        batch_sizes = [16, 32, 64]
         losses = ['mse']#, 'poisson']
         for i, (loss, seed, lr, wd,
                 bs) in enumerate(itertools.product(losses, seeds, lrs, wds, batch_sizes),
