@@ -128,11 +128,18 @@ class TrainedModel(dj.Computed):
         model.init_parameters()
         model.train()
         model.cuda()
+        
+        
+        
+        # TODO: DELETE!
+        optimizer = optim.Adam(model.parameters(), lr=float(train_params['learning_rate']),
+                              weight_decay=float(train_params['weight_decay']))
+        
 
         # Declare optimizer
-        optimizer = optim.SGD(model.parameters(), lr=float(train_params['learning_rate']),
-                              momentum=float(train_params['momentum']), nesterov=True,
-                              weight_decay=float(train_params['weight_decay']))
+        # optimizer = optim.SGD(model.parameters(), lr=float(train_params['learning_rate']),
+        #                       momentum=float(train_params['momentum']), nesterov=True,
+        #                       weight_decay=float(train_params['weight_decay']))
         scheduler = lr_scheduler.ReduceLROnPlateau(optimizer, mode='max',
                                                    factor=float(train_params['lr_decay']),
                                                    patience=int(round(

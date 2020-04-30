@@ -278,18 +278,30 @@ class TrainingParams(dj.Lookup):
 
     @property
     def contents(self):
-        seeds = [4567]#[1234, 2345, 4567, 5678, 6789]
-        lrs = [1, 10]
-        wds = [1e-6, 1e-5, 1e-4]
-        batch_sizes = [8, 16, 32]
+        # SGD Params
+        # seeds = [1234, 2345, 4567, 5678, 6789]
+        # lrs = [1, 10]
+        # wds = [1e-6, 1e-5, 1e-4]
+        # losses = ['mse']#, 'poisson']
+        # for i, (loss, seed, lr,
+        #         wd) in enumerate(itertools.product(losses, seeds, lrs, wds), start=1):
+        #     yield {'training_params': i, 'seed': seed, 'num_epochs': 200, 'val_epochs': 1,
+        #            'batch_size': 32, 'learning_rate': lr, 'momentum': 0.9,
+        #            'weight_decay': wd, 'loss_function': loss, 'lr_decay': 0.1,
+        #            'decay_epochs': 10, 'stopping_epochs': 50}
+        
+        seeds = [1234]#, 2345, 4567, 5678, 6789]
+        lrs = [0.01, 0.1, 1, 10]
+        wds = [0, 1e-6, 1e-5, 1e-4]
+        batch_sizes = [32, 64]
         losses = ['mse']#, 'poisson']
-        for i, (loss, seed, lr, wd,
-                bs) in enumerate(itertools.product(losses, seeds, lrs, wds, batch_sizes),
-                                 start=1):
+        for i, (loss, seed, lr,
+                wd, bs) in enumerate(itertools.product(losses, seeds, lrs, wds, batch_sizes), start=1):
             yield {'training_params': i, 'seed': seed, 'num_epochs': 200, 'val_epochs': 1,
                    'batch_size': bs, 'learning_rate': lr, 'momentum': 0.9,
                    'weight_decay': wd, 'loss_function': loss, 'lr_decay': 0.1,
                    'decay_epochs': 10, 'stopping_epochs': 50}
+        
 
 
 
@@ -313,7 +325,7 @@ class VGGParams(dj.Lookup):
         # {'core_id': 2, 'resized_img_dims': 128, 'layers_per_block': [1, 1, 1, 1, 1],
         #  'features_per_block': [32, 64, 96, 128, 160], 'use_batchnorm': True},
         # {'core_id': 3, 'resized_img_dims': 128, 'layers_per_block': [2, 2, 2],
-        #  'features_per_block': [32, 96, 160], 'use_batchnorm': True}, 
+        #  'features_per_block': [32, 96, 160], 'use_batchnorm': True},
         ]
 
 
