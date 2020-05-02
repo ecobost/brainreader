@@ -267,7 +267,7 @@ class TrainingParams(dj.Lookup):
     num_epochs:         int         # number of trainig epochs through the dataset
     val_epochs:         smallint    # run validation every this number of epochs
     batch_size:         smallint    # number of images in each batch
-    learning_rate:      decimal(6, 3) # initial learning rate for the optimizer
+    learning_rate:      decimal(8, 5) # initial learning rate for the optimizer
     momentum:           decimal(3, 2) # momentum factor for SGD updates
     weight_decay:       decimal(10, 8) # weight for l2 regularization
     loss_function:      varchar(8)  # loss function to use ('mse' or 'poisson')
@@ -303,7 +303,7 @@ class TrainingParams(dj.Lookup):
             
         # Poisson
         seeds = [1234]#, 2345, 4567, 5678, 6789]
-        lrs = [0.1, 1, 10]
+        lrs = [0.001, 0.1, 1]
         wds = [1e-7, 1e-6, 1e-5, 1e-4, 1e-3]
         losses = ['poisson']
         for i, (loss, seed, lr,
@@ -315,7 +315,7 @@ class TrainingParams(dj.Lookup):
         
         # poisson + ADAM    
         seeds = [1234]#, 2345, 4567, 5678, 6789]
-        lrs = [0.001, 0.1]
+        lrs = [0.0001, 0.001]
         wds = [1e-7, 1e-6, 1e-5, 1e-4, 1e-3]
         losses = ['poisson']
         for i, (loss, seed, lr,
