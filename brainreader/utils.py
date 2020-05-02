@@ -11,7 +11,7 @@ def resize(images, desired_height=72, desired_width=128, order=1):
         images (np.array): Array with images (num_images x height x widht).
         desired_height (int): Desired height for the output images
         desired_width (int): Desired height for the output images
-        order (int): Order of the interpolation used by ndimage.zoom (see docs there).desired_width
+        order (int): Order of the interpolation used by ndimage.zoom (see docs there).
 
     Returns:
         images (np.array). Array with the resized images (num_images x desired_height x
