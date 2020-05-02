@@ -44,7 +44,7 @@ def compute_correlation(resps1, resps2):
     if np.any(bad_cells):
         print('Warning: Unstable correlation (setting to -1).')
         corrs[bad_cells] = -1
-    
+
     return corrs.mean()
 
 @schema
@@ -72,7 +72,7 @@ class TrainedModel(dj.Computed):
     # @property
     # def key_source(self):
     #     """ Restrict to only the models that work well. """
-    #     all_keys = (brdata.Responses * params.DataParams * params.ModelParams * 
+    #     all_keys = (brdata.Responses * params.DataParams * params.ModelParams *
     #                 params.TrainingParams)
     #     return all_keys & {'data_params': 1, 'model_params': 2} & 'training_params <= 60'
 
@@ -128,13 +128,20 @@ class TrainedModel(dj.Computed):
         model.init_parameters()
         model.train()
         model.cuda()
-        
-        
-        
+
+
+
         # TODO: DELETE!
-        optimizer = optim.Adam(model.parameters(), lr=float(train_params['learning_rate']),
+        if train_params['momentum'] < 0:
+            print('Using ADAM')
+            optimizer = optim.Adam(model.parameters(), lr=float(train_params['learning_rate']),
                               weight_decay=float(train_params['weight_decay']))
-        
+        else:
+            print('USING SGD')
+            optimizer = optim.SGD(model.parameters(), lr=float(train_params['learning_rate']),
+                                momentum=float(train_params['momentum']), nesterov=True,
+                                weight_decay=float(train_params['weight_decay']))
+
 
         # Declare optimizer
         # optimizer = optim.SGD(model.parameters(), lr=float(train_params['learning_rate']),
@@ -230,9 +237,9 @@ class TrainedModel(dj.Computed):
                     best_epoch = epoch
                     best_loss = val_loss.item()
                     best_model = copy.deepcopy(model).cpu()
-                
+
                 # Stop training if validation has not improved in x number of epochs
-                if epoch - best_epoch > train_params['stopping_epochs']:
+                if epoch - best_epoch >= train_params['stopping_epochs']:
                     utils.log('Stopping training. Validation has not improved in '
                               '{stopping_epochs} epochs.'.format(**train_params))
                     break
