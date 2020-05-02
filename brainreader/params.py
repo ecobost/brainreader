@@ -81,7 +81,7 @@ class DataParams(dj.Lookup):
 
     @property
     def contents(self):
-        resp_norms = ['zscore-blanks']#, 'zscore-resps', 'stddev-blanks']
+        resp_norms = ['zscore-blanks', 'zscore-resps', 'stddev-blanks']
         for i, resp_norm in enumerate(resp_norms, start=1):
             yield {
                 'data_params': i, 'test_set': 'repeats', 'split_seed': 1234,
@@ -279,26 +279,37 @@ class TrainingParams(dj.Lookup):
     @property
     def contents(self):
         # SGD Params
-        # seeds = [1234, 2345, 4567, 5678, 6789]
-        # lrs = [1, 10]
-        # wds = [1e-6, 1e-5, 1e-4]
-        # losses = ['mse']#, 'poisson']
-        # for i, (loss, seed, lr,
-        #         wd) in enumerate(itertools.product(losses, seeds, lrs, wds), start=1):
-        #     yield {'training_params': i, 'seed': seed, 'num_epochs': 200, 'val_epochs': 1,
-        #            'batch_size': 32, 'learning_rate': lr, 'momentum': 0.9,
-        #            'weight_decay': wd, 'loss_function': loss, 'lr_decay': 0.1,
-        #            'decay_epochs': 10, 'stopping_epochs': 50}
-        
         seeds = [1234]#, 2345, 4567, 5678, 6789]
-        lrs = [0.01, 0.1, 1, 10]
-        wds = [0, 1e-6, 1e-5, 1e-4]
-        batch_sizes = [32, 64]
+        lrs = [1, 10]
+        wds = [1e-6, 1e-5, 1e-4]
         losses = ['mse']#, 'poisson']
         for i, (loss, seed, lr,
-                wd, bs) in enumerate(itertools.product(losses, seeds, lrs, wds, batch_sizes), start=1):
+                wd) in enumerate(itertools.product(losses, seeds, lrs, wds), start=1):
             yield {'training_params': i, 'seed': seed, 'num_epochs': 200, 'val_epochs': 1,
-                   'batch_size': bs, 'learning_rate': lr, 'momentum': 0.9,
+                   'batch_size': 32, 'learning_rate': lr, 'momentum': 0.9,
+                   'weight_decay': wd, 'loss_function': loss, 'lr_decay': 0.1,
+                   'decay_epochs': 10, 'stopping_epochs': 50}
+        
+        # ADAM params (converges to smaller values, will ignore)
+        seeds = [1234]#, 2345, 4567, 5678, 6789]
+        lrs = [0.001, 0.01]
+        wds = [1e-7, 1e-6, 1e-5, 1e-4, 1e-3]
+        losses = ['mse']#, 'poisson']
+        for i, (loss, seed, lr, wd) in enumerate(itertools.product(losses, seeds, lrs, wds), start=i +1):
+            yield {'training_params': i, 'seed': seed, 'num_epochs': 200, 'val_epochs': 1,
+                   'batch_size': 32, 'learning_rate': lr, 'momentum': -1, # TODO: !!! fix this, momentum -1 means ADAM
+                   'weight_decay': wd, 'loss_function': loss, 'lr_decay': 0.1,
+                   'decay_epochs': 10, 'stopping_epochs': 50}
+            
+        # Poisson
+        seeds = [1234]#, 2345, 4567, 5678, 6789]
+        lrs = [0.1, 1, 10]
+        wds = [1e-7, 1e-6, 1e-5, 1e-4, 1e-3]
+        losses = ['poisson']
+        for i, (loss, seed, lr,
+                wd) in enumerate(itertools.product(losses, seeds, lrs, wds), start=i + 1):
+            yield {'training_params': i, 'seed': seed, 'num_epochs': 200, 'val_epochs': 1,
+                   'batch_size': 32, 'learning_rate': lr, 'momentum': 0.9,
                    'weight_decay': wd, 'loss_function': loss, 'lr_decay': 0.1,
                    'decay_epochs': 10, 'stopping_epochs': 50}
         
@@ -422,7 +433,10 @@ class MLPParams(dj.Lookup):
     hidden_features:tinyblob    # number of features/units in each hidden layer (ignoring input and output features)
     use_batchnorm:  boolean     # whether to use batchnorm in this mlp
     """
-    contents = [{'readout_id': 1, 'hidden_features': [192], 'use_batchnorm': True}, ]
+    contents = [{'readout_id': 1, 'hidden_features': [192], 'use_batchnorm': True}, 
+                {'readout_id': 2, 'hidden_features': [192], 'use_batchnorm': False},
+                {'readout_id': 3, 'hidden_features': [64], 'use_batchnorm': True},
+                {'readout_id': 4, 'hidden_features': [], 'use_batchnorm': True},]
 
 
 @schema
@@ -487,12 +501,20 @@ class ModelParams(dj.Lookup):
         #            'agg_id': aid, 'readout_type': 'mlp', 'readout_id': 1,
         #            'act_type': 'none', 'act_id': 1}
 
-        # # Add models with an exponential final activation (to use poisson loss)
-        # i = i + 1
-        # yield {
-        #     'model_params': i, 'core_type': 'vgg', 'core_id': 1, 'agg_type': 'point',
-        #     'agg_id': 1, 'readout_type': 'mlp', 'readout_id': 1, 'act_type': 'exp',
-        #     'act_id': 1}
+        # Add models with an exponential final activation (to use poisson loss)
+        i = i + 1
+        yield {
+            'model_params': i, 'core_type': 'vgg', 'core_id': 1, 'agg_type': 'point',
+            'agg_id': 1, 'readout_type': 'mlp', 'readout_id': 1, 'act_type': 'exp',
+            'act_id': 1}
+        
+        # Test shorter MLP (should reduce params quite a bit)
+        for i, readout_id in enumerate([2, 3, 4], start=i+1):
+            yield {'model_params': i, 'core_type': 'vgg', 'core_id': 1, 'agg_type': 'point',
+                   'agg_id': 1, 'readout_type': 'mlp', 'readout_id': readout_id,
+                   'act_type': 'none', 'act_id': 1}
+        
+        
 
 
     def get_model(self, num_cells, in_channels=1, out_channels=1):
