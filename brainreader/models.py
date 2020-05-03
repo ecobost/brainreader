@@ -850,7 +850,21 @@ class ExponentialActivation(nn.Module):
     def init_parameters(self):
         pass
 
-activations = {'none': NoActivation, 'exp': ExponentialActivation}
+
+class ELUPlusOneActivation(nn.Module):
+    """ Returns elu(x) + 1
+    
+    f: R -> R+
+    """
+    def forward(self, input_):
+        return F.elu(input_.squeeze(-1)) + 1
+
+    def init_parameters(self):
+        pass
+
+
+activations = {'none': NoActivation, 'exp': ExponentialActivation, 
+               'elu': ELUPlusOneActivation}
 def build_activation(type_='none', **kwargs):
     """ Build a final activation module
     

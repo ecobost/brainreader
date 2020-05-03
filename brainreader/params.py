@@ -315,8 +315,8 @@ class TrainingParams(dj.Lookup):
         
         # poisson + ADAM    
         seeds = [1234]#, 2345, 4567, 5678, 6789]
-        lrs = [0.0001, 0.001]
-        wds = [1e-7, 1e-6, 1e-5, 1e-4, 1e-3]
+        lrs = [0.0001, 0.001] # could try a faster LR (but I think it already failed before)
+        wds = [1e-7, 1e-6, 1e-5, 1e-4, 1e-3] # two higher weight decays are unnecessary
         losses = ['poisson']
         for i, (loss, seed, lr,
                 wd) in enumerate(itertools.product(losses, seeds, lrs, wds), start=i + 1):
@@ -514,7 +514,7 @@ class ModelParams(dj.Lookup):
         #            'act_type': 'none', 'act_id': 1}
 
         # Add models with an exponential final activation (to use poisson loss)
-        i = i + 1
+        i = i + 1 # 16
         yield {
             'model_params': i, 'core_type': 'vgg', 'core_id': 1, 'agg_type': 'gaussian',
             'agg_id': 1, 'readout_type': 'mlp', 'readout_id': 1, 'act_type': 'exp',
@@ -526,8 +526,12 @@ class ModelParams(dj.Lookup):
                    'agg_id': 1, 'readout_type': 'mlp', 'readout_id': readout_id,
                    'act_type': 'none', 'act_id': 1}
         
-        
-
+        # Add models with an exponential final activation (to use poisson loss)
+        i = i + 1 # 20
+        yield {
+            'model_params': i, 'core_type': 'vgg', 'core_id': 1, 'agg_type': 'gaussian',
+            'agg_id': 1, 'readout_type': 'mlp', 'readout_id': 3, 'act_type': 'elu',
+            'act_id': 1}
 
     def get_model(self, num_cells, in_channels=1, out_channels=1):
         """ Builds a network with the desired modules
@@ -598,7 +602,7 @@ class ModelParams(dj.Lookup):
 
         # Build final activation
         act_type = self.fetch1('act_type')
-        if act_type == 'none':
+        if act_type in ['none', 'elu']: # TODO: drop elu if not used
             act_kwargs = {}
         elif act_type == 'exp':
             m, s = (ExponentialActParams & self).fetch1('desired_mean', 'desired_std')
