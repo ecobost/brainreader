@@ -289,7 +289,7 @@ class TrainingParams(dj.Lookup):
                    'batch_size': 32, 'learning_rate': lr, 'momentum': 0.9,
                    'weight_decay': wd, 'loss_function': loss, 'lr_decay': 0.1,
                    'decay_epochs': 10, 'stopping_epochs': 50}
-        
+
         # ADAM params (converges to smaller values, will ignore)
         seeds = [1234]#, 2345, 4567, 5678, 6789]
         lrs = [0.001, 0.01]
@@ -300,7 +300,7 @@ class TrainingParams(dj.Lookup):
                    'batch_size': 32, 'learning_rate': lr, 'momentum': -1, # TODO: !!! fix this, momentum -1 means ADAM
                    'weight_decay': wd, 'loss_function': loss, 'lr_decay': 0.1,
                    'decay_epochs': 10, 'stopping_epochs': 50}
-            
+
         # Poisson
         seeds = [1234]#, 2345, 4567, 5678, 6789]
         lrs = [0.001, 0.1, 1]
@@ -312,8 +312,8 @@ class TrainingParams(dj.Lookup):
                    'batch_size': 32, 'learning_rate': lr, 'momentum': 0.9,
                    'weight_decay': wd, 'loss_function': loss, 'lr_decay': 0.1,
                    'decay_epochs': 10, 'stopping_epochs': 50}
-        
-        # poisson + ADAM    
+
+        # poisson + ADAM
         seeds = [1234]#, 2345, 4567, 5678, 6789]
         lrs = [0.0001, 0.001] # could try a faster LR (but I think it already failed before)
         wds = [1e-7, 1e-6, 1e-5, 1e-4, 1e-3] # two higher weight decays are unnecessary
@@ -324,7 +324,7 @@ class TrainingParams(dj.Lookup):
                    'batch_size': 32, 'learning_rate': lr, 'momentum': -1,
                    'weight_decay': wd, 'loss_function': loss, 'lr_decay': 0.1,
                    'decay_epochs': 10, 'stopping_epochs': 50}
-        
+
 
 
 
@@ -345,6 +345,8 @@ class VGGParams(dj.Lookup):
     contents = [
         {'core_id': 1, 'resized_img_dims': 128, 'layers_per_block': [2, 2, 2, 2, 2],
          'features_per_block': [32, 64, 96, 128, 160], 'use_batchnorm': True},
+        {'core_id': 2, 'resized_img_dims': 128, 'layers_per_block': [2, 2, 2, 2, 2],
+         'features_per_block': [32, 64, 96, 128, 160], 'use_batchnorm': False},
         # {'core_id': 2, 'resized_img_dims': 128, 'layers_per_block': [1, 1, 1, 1, 1],
         #  'features_per_block': [32, 64, 96, 128, 160], 'use_batchnorm': True},
         # {'core_id': 3, 'resized_img_dims': 128, 'layers_per_block': [2, 2, 2],
@@ -445,10 +447,11 @@ class MLPParams(dj.Lookup):
     hidden_features:tinyblob    # number of features/units in each hidden layer (ignoring input and output features)
     use_batchnorm:  boolean     # whether to use batchnorm in this mlp
     """
-    contents = [{'readout_id': 1, 'hidden_features': [192], 'use_batchnorm': True}, 
+    contents = [{'readout_id': 1, 'hidden_features': [192], 'use_batchnorm': True},
                 {'readout_id': 2, 'hidden_features': [192], 'use_batchnorm': False},
                 {'readout_id': 3, 'hidden_features': [64], 'use_batchnorm': True},
-                {'readout_id': 4, 'hidden_features': [], 'use_batchnorm': True},]
+                {'readout_id': 4, 'hidden_features': [], 'use_batchnorm': True},
+                {'readout_id': 5, 'hidden_features': [64], 'use_batchnorm': False},]
 
 
 @schema
@@ -519,18 +522,25 @@ class ModelParams(dj.Lookup):
             'model_params': i, 'core_type': 'vgg', 'core_id': 1, 'agg_type': 'gaussian',
             'agg_id': 1, 'readout_type': 'mlp', 'readout_id': 1, 'act_type': 'exp',
             'act_id': 1}
-        
+
         # Test shorter MLP (should reduce params quite a bit)
         for i, readout_id in enumerate([2, 3, 4], start=i+1):
             yield {'model_params': i, 'core_type': 'vgg', 'core_id': 1, 'agg_type': 'gaussian',
                    'agg_id': 1, 'readout_type': 'mlp', 'readout_id': readout_id,
                    'act_type': 'none', 'act_id': 1}
-        
+
         # Add models with an exponential final activation (to use poisson loss)
         i = i + 1 # 20
         yield {
             'model_params': i, 'core_type': 'vgg', 'core_id': 1, 'agg_type': 'gaussian',
             'agg_id': 1, 'readout_type': 'mlp', 'readout_id': 3, 'act_type': 'elu',
+            'act_id': 1}
+
+        # No batchnorm anywhere
+        i = i + 1  # 21
+        yield {
+            'model_params': i, 'core_type': 'vgg', 'core_id': 2, 'agg_type': 'gaussian',
+            'agg_id': 1, 'readout_type': 'mlp', 'readout_id': 5, 'act_type': 'none',
             'act_id': 1}
 
     def get_model(self, num_cells, in_channels=1, out_channels=1):
