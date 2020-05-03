@@ -15,7 +15,8 @@ from brainreader import train
 
 train.TrainedModel.populate({'dset_id': 1, 'model_params': 20}, 'data_params in (1, 3)',
                             'training_params <= 6', reserve_jobs=True)  # MSE with elu activation (and either data_params1 or 3)
-
+# train.TrainedModel.populate({'dset_id': 1, 'data_params': 1}, 'model_params > 16',
+#                             'training_params <= 6', reserve_jobs=True) # smaller MLP
 
 # train.Evaluation.populate(reserve_jobs=True)
 # train.Ensemble.populate(reserve_jobs=True)
