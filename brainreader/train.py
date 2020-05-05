@@ -191,9 +191,6 @@ class TrainedModel(dj.Computed):
                 # Compute loss
                 loss = TrainedModel._compute_loss(responses, pred_responses)
 
-                #TODO: DELETE
-                print(model.aggregator.xy_mean[5291], model.aggregator.xy_std[5291], model.aggregator.corr_xy[5291])
-
                 # Check for divergence
                 if torch.isnan(loss) or torch.isinf(loss):
                     raise ValueError('Loss diverged')

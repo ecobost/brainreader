@@ -16,15 +16,15 @@ from brainreader import train
 # train.TrainedModel.populate({'dset_id': 1, 'data_params': 1, 'model_params': 21},
 #                              'training_params > 6 AND training_params <=16', reserve_jobs=True) # no batchnorm anywhere (use ADAM, because SGD diverges, probalby needs slower)
 
-# from brainreader import params
-# train.TrainedModel.populate({'dset_id': 1, 'data_params': 3, 'model_params': 22},
-#                             params.TrainingParams & {'loss_function': 'exp'}, 
-#                             reserve_jobs=True)
+from brainreader import params
+train.TrainedModel.populate({'dset_id': 1, 'data_params': 3, 'model_params': 22},
+                            params.TrainingParams & {'loss_function': 'exp'}, 
+                            reserve_jobs=True)
 
 # train.Evaluation.populate(reserve_jobs=True)
 # train.Ensemble.populate(reserve_jobs=True)
 # train.EnsembleEvaluation.populate(reserve_jobs=True)
 
-# train MLP
-from brainreader import decoding
-decoding.MLPModel.populate('dset_id in (1, 5)', reserve_jobs=True)
+# # train MLP
+# from brainreader import decoding
+# decoding.MLPModel.populate('dset_id in (1, 5)', reserve_jobs=True)

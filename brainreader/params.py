@@ -326,6 +326,20 @@ class TrainingParams(dj.Lookup):
                    'decay_epochs': 10, 'stopping_epochs': 50}
 
 
+        # Exponential loss function + SGD
+        seeds = [1234]  #, 2345, 4567, 5678, 6789]
+        lrs = [0.1, 1.0, 10.0]
+        wds = [0, 1e-6, 1e-5, 1e-4, 1e-3]
+        losses = ['exp']
+        for i, (loss, seed, lr,
+                wd) in enumerate(itertools.product(losses, seeds, lrs, wds), start=i + 1):
+            yield {
+                'training_params': i, 'seed': seed, 'num_epochs': 200, 'val_epochs': 1,
+                'batch_size': 32, 'learning_rate': lr, 'momentum': 0.9,
+                'weight_decay': wd, 'loss_function': loss, 'lr_decay': 0.1,
+                'decay_epochs': 10, 'stopping_epochs': 50}
+
+
 
 
 ############################## MODELS ###############################
@@ -529,7 +543,7 @@ class ModelParams(dj.Lookup):
                    'agg_id': 1, 'readout_type': 'mlp', 'readout_id': readout_id,
                    'act_type': 'none', 'act_id': 1}
 
-        # Add models with an exponential final activation (to use poisson loss)
+        # Add models with an ELU final activation
         i = i + 1 # 20
         yield {
             'model_params': i, 'core_type': 'vgg', 'core_id': 1, 'agg_type': 'gaussian',
@@ -541,6 +555,13 @@ class ModelParams(dj.Lookup):
         yield {
             'model_params': i, 'core_type': 'vgg', 'core_id': 2, 'agg_type': 'gaussian',
             'agg_id': 1, 'readout_type': 'mlp', 'readout_id': 5, 'act_type': 'none',
+            'act_id': 1}
+
+        # Model with an exponential final activation (and a smaller MLP, to test exp loss)
+        i = i + 1  # 22
+        yield {
+            'model_params': i, 'core_type': 'vgg', 'core_id': 1, 'agg_type': 'gaussian',
+            'agg_id': 1, 'readout_type': 'mlp', 'readout_id': 3, 'act_type': 'exp',
             'act_id': 1}
 
     def get_model(self, num_cells, in_channels=1, out_channels=1):
