@@ -97,6 +97,7 @@ class TrainedModel(dj.Computed):
         elif loss_function == 'exp': # nll for an exponential curve
             loss = torch.log(pred_responses) + responses / (pred_responses + 1e-8)
             loss = loss.mean()
+            djdkdl
         else:
             raise NotImplementedError(f'Loss function {loss_function} not implemented')
 
@@ -189,7 +190,8 @@ class TrainedModel(dj.Computed):
                 pred_responses = model(images)
 
                 # Compute loss
-                loss = TrainedModel._compute_loss(responses, pred_responses)
+                loss = TrainedModel._compute_loss(responses, pred_responses, 
+                                                  train_params['loss_function'])
 
                 # Check for divergence
                 if torch.isnan(loss) or torch.isinf(loss):
@@ -218,7 +220,8 @@ class TrainedModel(dj.Computed):
                     pred_responses = torch.cat([r[1] for r in all_resps])
                     model.train()
 
-                    val_loss = TrainedModel._compute_loss(responses, pred_responses)
+                    val_loss = TrainedModel._compute_loss(responses, pred_responses, 
+                                                          train_params['loss_function'])
                     val_corr = compute_correlation(responses, pred_responses)
 
                 # Check for divergence
