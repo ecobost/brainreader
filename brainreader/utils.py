@@ -33,7 +33,7 @@ def log(*messages):
     print(formatted_time, *messages, flush=True)
 
 
-def compute_correlation(x, y, eps=1e-9):
+def compute_correlation(x, y, eps=1e-8):
     """ Compute Pearson's correlation for each row in x and y.
     
     Arguments:
@@ -54,7 +54,7 @@ def compute_correlation(x, y, eps=1e-9):
     return corrs
 
 
-def bivariate_gaussian(xy, xy_mean, xy_std, corr_xy, normalize=False, eps=1e-9):
+def bivariate_gaussian(xy, xy_mean, xy_std, corr_xy, normalize=False, eps=1e-8):
     """ Compute the pdf of a bivariate gaussian distribution.
     
     Arguments:
