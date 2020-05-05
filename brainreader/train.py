@@ -42,7 +42,7 @@ def compute_correlation(resps1, resps2):
     # Check that all corrs are valid
     bad_cells = (corrs < -1) | (corrs > 1) | np.isnan(corrs) | np.isinf(corrs)
     if np.any(bad_cells):
-        print('Warning: Unstable correlation (setting to -1).')
+        print('Warning: Unstable correlation (setting to -1).', flush=True)
         corrs[bad_cells] = -1
 
     return corrs.mean()
@@ -94,6 +94,9 @@ class TrainedModel(dj.Computed):
             loss = F.mse_loss(pred_responses, responses)
         elif loss_function == 'poisson':
             loss = F.poisson_nll_loss(pred_responses, responses, log_input=False)
+        elif loss_function == 'exp': # nll for an exponential curve
+            loss = torch.log(pred_responses) + responses / (pred_responses + 1e-8)
+            loss = loss.mean()
         else:
             raise NotImplementedError(f'Loss function {loss_function} not implemented')
 
@@ -106,6 +109,7 @@ class TrainedModel(dj.Computed):
 
         # Set random seed
         torch.manual_seed(train_params['seed'])
+        torch.backends.cudnn.deterministic = True
 
         # Get data
         utils.log('Fetching data')
@@ -186,6 +190,9 @@ class TrainedModel(dj.Computed):
 
                 # Compute loss
                 loss = TrainedModel._compute_loss(responses, pred_responses)
+
+                #TODO: DELETE
+                print(model.aggregator.xy_mean[5291], model.aggregator.xy_std[5291], model.aggregator.corr_xy[5291])
 
                 # Check for divergence
                 if torch.isnan(loss) or torch.isinf(loss):
