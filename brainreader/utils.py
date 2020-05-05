@@ -18,7 +18,7 @@ def resize(images, desired_height=72, desired_width=128, order=1):
             desired_width).
     """
     zoom = (desired_height / images.shape[-2], desired_width / images.shape[-1])
-    if zoom != (1, 1): # ndimage does not check for this
+    if zoom != (1, 1):  # ndimage does not check for this
         images = np.stack([ndimage.zoom(im, zoom, order=order) for im in images])
     return images
 
@@ -48,13 +48,13 @@ def compute_correlation(x, y, eps=1e-9):
     # Compute correlation per variable
     x_res = x - x.mean(axis=-1, keepdims=True)
     y_res = y - y.mean(axis=-1, keepdims=True)
-    corrs = (x_res * y_res).sum(axis=-1) / (np.sqrt((x_res**2).sum(axis=-1) * 
-                                                    (y_res**2).sum(axis=-1)) + eps)
+    corrs = (x_res * y_res).sum(axis=-1) / (np.sqrt(
+        (x_res**2).sum(axis=-1) * (y_res**2).sum(axis=-1)) + eps)
 
     return corrs
 
 
-def bivariate_gaussian(xy, xy_mean, xy_std, corr_xy, normalize=False):
+def bivariate_gaussian(xy, xy_mean, xy_std, corr_xy, normalize=False, eps=1e-9):
     """ Compute the pdf of a bivariate gaussian distribution.
     
     Arguments:
@@ -64,6 +64,7 @@ def bivariate_gaussian(xy, xy_mean, xy_std, corr_xy, normalize=False):
         xy_std (torch tensor): Standard deviation in x and y. Shape: (N, 2).
         corr_xy (torch.tensor): Correlation between x and y. Shape: (N).
         normalize (boolean): Normalize the pdf values so it is a valid pdf (sums to 1).
+        eps (float): Small number to avoid division by zero.
     
     Returns:
         pdfs (torch.tensor): A tensor (N, M) with the pdf values at each position.
@@ -75,14 +76,14 @@ def bivariate_gaussian(xy, xy_mean, xy_std, corr_xy, normalize=False):
     corr_xy = corr_xy.unsqueeze(-1)  # used after last dimension is reduced (so [N, 1])
 
     # Compute pdf
-    residuals = (xy - xy_mean) / xy_std
+    residuals = (xy - xy_mean) / (xy_std + eps)
     numer = 2 * corr_xy * torch.prod(residuals, dim=-1) - torch.sum(residuals**2, dim=-1)
-    pdf = torch.exp(numer / (2 * (1- corr_xy**2)))
+    pdf = torch.exp(numer / (2 * (1 - corr_xy**2) + eps))
 
     # normalize pdf if needed
     if normalize:
         import math
         divisor = 2 * math.pi * torch.prod(xy_std, dim=-1) * torch.sqrt(1 - corr_xy**2)
-        pdf = pdf / divisor
+        pdf = pdf / (divisor + eps)
 
     return pdf
