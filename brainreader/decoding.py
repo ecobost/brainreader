@@ -121,7 +121,7 @@ class LinearModel(dj.Computed):
     """
     @property
     def key_source(self):
-        all_keys = brdata.Scan * params.DataParams * LinearParams.proj()
+        all_keys = data.Scan * params.DataParams * LinearParams.proj()
         return all_keys & {'data_params': 1} & 'linear_params < 49'
 
     def make(self, key):
@@ -397,7 +397,9 @@ class MLPModel(dj.Computed):
 
     @property
     def key_source(self):
-        return data.Scan * params.DataParams * MLPParams.proj() & {'data_params': 1}
+        return data.Scan * params.DataParams * MLPParams & {'data_params': 1}
+        # all_keys = data.Scan * params.DataParams * MLPParams
+        # return all_keys & {'data_params': 1, 'mlp_architecture': 2, 'mlp_data': 4}
 
     def make(self, key):
         # Get data
@@ -424,8 +426,11 @@ class MLPModel(dj.Computed):
         train_dloader = torchdata.DataLoader(train_dset, batch_size=128, num_workers=4,
                                         shuffle=True)
 
+        # Make initialization and training repeatable
+        torch.manual_seed(1234)
+        torch.backends.cudnn.deterministic = True
+
         # Define model
-        torch.manual_seed(1234)  # used during weight initialization
         num_cells = train_responses.shape[-1]
         hidden_features = (MLPArchitecture & (MLPParams & key)).fetch1('layer_sizes')
         num_pixels = train_images.shape[-1]
@@ -437,7 +442,7 @@ class MLPModel(dj.Computed):
             'learning_rate', 'l2_weight')
         optimizer = optim.Adam(model.parameters(), lr=learning_rate,
                                weight_decay=l2_weight)
-        scheduler = lr_scheduler.ReduceLROnPlateau(optimizer, mode='max', factor=0.1, 
+        scheduler = lr_scheduler.ReduceLROnPlateau(optimizer, mode='max', factor=0.1,
                                                    patience=10, verbose=True)
 
         # Fit
