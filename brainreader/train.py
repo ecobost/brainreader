@@ -77,11 +77,11 @@ class TrainedModel(dj.Computed):
     #     return all_keys & {'data_params': 1, 'model_params': 2} & 'training_params <= 60'
 
     @staticmethod
-    def _compute_loss(pred_responses, responses, loss_function='mse'):
+    def _compute_loss(responses, pred_responses, loss_function='mse'):
         """ Computes the appropiate loss function. Differentiable
         
         Arguments:
-            pred_responses, responses (tensor): A (num_images, num_cells) tensor with cell
+            responses, pred_responses (tensor): A (num_images, num_cells) tensor with cell
                 responses.
             loss_function (string): What loss function to use:
                 'mse': Mean squared error.
@@ -97,7 +97,6 @@ class TrainedModel(dj.Computed):
         elif loss_function == 'exp': # nll for an exponential curve
             loss = torch.log(pred_responses) + responses / (pred_responses + 1e-8)
             loss = loss.mean()
-            djdkdl
         else:
             raise NotImplementedError(f'Loss function {loss_function} not implemented')
 
