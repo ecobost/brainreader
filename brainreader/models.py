@@ -551,9 +551,9 @@ class GaussianAggregator(nn.Module):
         masks = masks.view(-1, in_height, in_width)
 
         # Normalize
-        masks = masks / masks.sum(dim=(-1, -2), keepdim=True)
+        norm_masks = masks / masks.sum(dim=(-1, -2), keepdim=True)
 
-        return masks
+        return norm_masks
 
 
 class FactorizedAggregator(nn.Module):
@@ -836,6 +836,10 @@ class ExponentialActivation(nn.Module):
     """
     def __init__(self, output_mean=1, output_std=0.2):
         super().__init__()
+        
+        self.rescale = output_std > 0 # send output_std -1 to not rescan
+        if not self.rescale:
+            return
 
         # Compute the required mean and std of the input to get the desired output stats
         import math
@@ -844,8 +848,11 @@ class ExponentialActivation(nn.Module):
         self._input_std = math.sqrt(input_var)
 
     def forward(self, input_):
-        rescaled = input_ * self._input_std + self._input_mean
-        return torch.exp(rescaled).squeeze(-1)
+        if self.rescale:
+            rescaled = input_ * self._input_std + self._input_mean
+            return torch.exp(rescaled).squeeze(-1)
+        else:
+            return torch.exp(input_).squeeze(-1)
 
     def init_parameters(self):
         pass
