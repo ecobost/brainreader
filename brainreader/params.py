@@ -329,7 +329,7 @@ class TrainingParams(dj.Lookup):
         loss = 'poisson'
 
         # Poisson + exp
-        lrs = [1e-2, 1e-3]
+        lrs = [1e-4, 1e-3]
         for i, (lr, wd) in enumerate(itertools.product(lrs, wds), start=i + 1):
             yield {
                 'training_params': i, 'seed': seed, 'num_epochs': 200, 'val_epochs': 1,
@@ -430,7 +430,20 @@ class TrainingParams(dj.Lookup):
                 'batch_size': 32, 'learning_rate': lr, 'momentum': -1, 'weight_decay': wd,
                 'loss_function': loss, 'lr_decay': 0.1, 'decay_epochs': 5,
                 'stopping_epochs': 30}
-
+            
+            
+        # RETEST the best combos
+        loss = 'poisson'
+        seed = 7856
+        wds = [0, 1e-7, 1e-6, 1e-5]
+        lrs = [1, 10, 100]
+        momentums = [0.9, -1]
+        for i, (m, lr, wd) in enumerate(itertools.product(momentums, lrs, wds), start=i + 1):
+            yield {
+                'training_params': i, 'seed': seed, 'num_epochs': 200, 'val_epochs': 1,
+                'batch_size': 32, 'learning_rate': lr, 'momentum': m, 'weight_decay': wd,
+                'loss_function': loss, 'lr_decay': 0.1, 'decay_epochs': 5,
+                'stopping_epochs': 30}
 
 
 

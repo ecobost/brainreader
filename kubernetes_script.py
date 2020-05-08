@@ -4,86 +4,96 @@ from brainreader import train
 from brainreader import params
 
 
-train.TrainedModel.populate({'dset_id': 1, 'model_params': 1, 'data_params': 1}, 'training_params <=6',
-                            reserve_jobs=True) # MSE + none
+# train.TrainedModel.populate({'dset_id': 1, 'model_params': 1, 'data_params': 1}, 'training_params <=6',
+#                             reserve_jobs=True) # MSE + none
+
+# train.TrainedModel.populate({'dset_id': 1, 'model_params': 3, 'data_params': 3},
+#                             'training_params <=6', reserve_jobs=True)  # MSE + elu
+
+# train.TrainedModel.populate({'dset_id': 1, 'model_params': 4, 'data_params': 3},
+#                             'training_params >6 AND training_params <=12',
+#                             reserve_jobs=True)  # MSE + expscaled
+
+
+# train.TrainedModel.populate({'dset_id': 1, 'model_params': 2, 'data_params': 3},
+#                             'training_params >12 AND training_params <=18',
+#                             reserve_jobs=True)  # poisson + exp
+
+# train.TrainedModel.populate({'dset_id': 1, 'model_params': 3, 'data_params': 3},
+#                             'training_params >18 AND training_params <=24',
+#                             reserve_jobs=True)  # poisson + elu
+
+# train.TrainedModel.populate({'dset_id': 1, 'model_params': 4, 'data_params': 3},
+#                             'training_params >18 AND training_params <=24',
+#                             reserve_jobs=True)  # poisson + expscaled
+
+
+# train.TrainedModel.populate({'dset_id': 1, 'model_params': 2, 'data_params': 3},
+#                             'training_params >24 AND training_params <=30',
+#                             reserve_jobs=True)  # exp + exp
+
+# train.TrainedModel.populate({'dset_id': 1, 'model_params': 3, 'data_params': 3},
+#                             'training_params >24 AND training_params <=30',
+#                             reserve_jobs=True)  # exp + elu
+
+# train.TrainedModel.populate({'dset_id': 1, 'model_params': 4, 'data_params': 3},
+#                             'training_params >30 AND training_params <=36',
+#                             reserve_jobs=True)  # exp + expscaled
+
+
+
+# train.TrainedModel.populate({'dset_id': 1, 'model_params': 1, 'data_params': 1},
+#                             'training_params >36 AND training_params <=42',
+#                             reserve_jobs=True)  # mse + none
+
+# train.TrainedModel.populate({'dset_id': 1, 'model_params': 2, 'data_params': 3},
+#                             'training_params >36 AND training_params <=42',
+#                             reserve_jobs=True)  # mse + exp
+
+# train.TrainedModel.populate({'dset_id': 1, 'model_params': 3, 'data_params': 3},
+#                             'training_params >42 AND training_params <=48',
+#                             reserve_jobs=True)  # mse + elu
+
+# train.TrainedModel.populate({'dset_id': 1, 'model_params': 4, 'data_params': 3},
+#                             'training_params >36 AND training_params <=42',
+#                             reserve_jobs=True)  # mse + expscaled
+
+
+# train.TrainedModel.populate({'dset_id': 1, 'model_params': 2, 'data_params': 3},
+#                             'training_params >48 AND training_params <=54',
+#                             reserve_jobs=True)  # poisson + exp
+
+# train.TrainedModel.populate({'dset_id': 1, 'model_params': 3, 'data_params': 3},
+#                             'training_params >54 AND training_params <=60',
+#                             reserve_jobs=True)  # poisson + elu
+
+# train.TrainedModel.populate({'dset_id': 1, 'model_params': 4, 'data_params': 3},
+#                             'training_params >54 AND training_params <=60',
+#                             reserve_jobs=True)  # poisson + expscaled
+
+
+# train.TrainedModel.populate({'dset_id': 1, 'model_params': 2, 'data_params': 3},
+#                             'training_params >60 AND training_params <=66',
+#                             reserve_jobs=True)  # exp + exp
+
+# train.TrainedModel.populate({'dset_id': 1, 'model_params': 3, 'data_params': 3},
+#                             'training_params >60 AND training_params <=66',
+#                             reserve_jobs=True)  # exp + elu
+
+# train.TrainedModel.populate({'dset_id': 1, 'model_params': 4, 'data_params': 3},
+#                             'training_params >66 AND training_params <=72',
+#                             reserve_jobs=True)  # exp + expscaled
+
+
+
 
 train.TrainedModel.populate({'dset_id': 1, 'model_params': 3, 'data_params': 3},
-                            'training_params <=6', reserve_jobs=True)  # MSE + elu
+                            'training_params >72 AND training_params <=96',
+                            reserve_jobs=True)  # poissson + elu
 
 train.TrainedModel.populate({'dset_id': 1, 'model_params': 4, 'data_params': 3},
-                            'training_params >6 AND training_params <=12',
-                            reserve_jobs=True)  # MSE + expscaled
-
-
-train.TrainedModel.populate({'dset_id': 1, 'model_params': 2, 'data_params': 3},
-                            'training_params >12 AND training_params <=18',
-                            reserve_jobs=True)  # poisson + exp
-
-train.TrainedModel.populate({'dset_id': 1, 'model_params': 3, 'data_params': 3},
-                            'training_params >18 AND training_params <=24',
-                            reserve_jobs=True)  # poisson + elu
-
-train.TrainedModel.populate({'dset_id': 1, 'model_params': 4, 'data_params': 3},
-                            'training_params >18 AND training_params <=24',
-                            reserve_jobs=True)  # poisson + expscaled
-
-
-train.TrainedModel.populate({'dset_id': 1, 'model_params': 2, 'data_params': 3},
-                            'training_params >24 AND training_params <=30',
-                            reserve_jobs=True)  # exp + exp
-
-train.TrainedModel.populate({'dset_id': 1, 'model_params': 3, 'data_params': 3},
-                            'training_params >24 AND training_params <=30',
-                            reserve_jobs=True)  # exp + elu
-
-train.TrainedModel.populate({'dset_id': 1, 'model_params': 4, 'data_params': 3},
-                            'training_params >30 AND training_params <=36',
-                            reserve_jobs=True)  # exp + expscaled
-
-
-
-train.TrainedModel.populate({'dset_id': 1, 'model_params': 1, 'data_params': 1},
-                            'training_params >36 AND training_params <=42',
-                            reserve_jobs=True)  # mse + none
-
-train.TrainedModel.populate({'dset_id': 1, 'model_params': 2, 'data_params': 3},
-                            'training_params >36 AND training_params <=42',
-                            reserve_jobs=True)  # mse + exp
-
-train.TrainedModel.populate({'dset_id': 1, 'model_params': 3, 'data_params': 3},
-                            'training_params >42 AND training_params <=48',
-                            reserve_jobs=True)  # mse + elu
-
-train.TrainedModel.populate({'dset_id': 1, 'model_params': 4, 'data_params': 3},
-                            'training_params >36 AND training_params <=42',
-                            reserve_jobs=True)  # mse + expscaled
-
-
-train.TrainedModel.populate({'dset_id': 1, 'model_params': 2, 'data_params': 3},
-                            'training_params >48 AND training_params <=54',
-                            reserve_jobs=True)  # poisson + exp
-
-train.TrainedModel.populate({'dset_id': 1, 'model_params': 3, 'data_params': 3},
-                            'training_params >54 AND training_params <=60',
-                            reserve_jobs=True)  # poisson + elu
-
-train.TrainedModel.populate({'dset_id': 1, 'model_params': 4, 'data_params': 3},
-                            'training_params >54 AND training_params <=60',
-                            reserve_jobs=True)  # poisson + expscaled
-
-
-train.TrainedModel.populate({'dset_id': 1, 'model_params': 2, 'data_params': 3},
-                            'training_params >60 AND training_params <=66',
-                            reserve_jobs=True)  # exp + exp
-
-train.TrainedModel.populate({'dset_id': 1, 'model_params': 3, 'data_params': 3},
-                            'training_params >60 AND training_params <=66',
-                            reserve_jobs=True)  # exp + elu
-
-train.TrainedModel.populate({'dset_id': 1, 'model_params': 4, 'data_params': 3},
-                            'training_params >66 AND training_params <=72',
-                            reserve_jobs=True)  # exp + expscaled
-
+                            'training_params >72 AND training_params <=96',
+                            reserve_jobs=True)  # poissson + expscaled
 
 
 
