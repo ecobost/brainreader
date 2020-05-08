@@ -47,8 +47,12 @@ class ResponseNormalization(dj.Lookup):
             'over responses to blank images. Does not subtract the mean.'},
         {
             'resp_normalization': 'df/f',
+            'description': 'Compute background fluorescence bf (per cell) as response to '
+            'blanks and use that to get (f-bf) / bf'},
+        {
+            'resp_normalization': 'df/std(df)',
             'description': 'Compute background fluorescence (per cell) as response to '
-            'blanks and use that to get df/f (f-bf)/bf'}, ]
+            'blanks and use that to get (f-bf)/std(f-bf)'}, ]
 
 
 @schema
@@ -85,7 +89,7 @@ class DataParams(dj.Lookup):
 
     @property
     def contents(self):
-        resp_norms = ['zscore-blanks', 'zscore-resps', 'stddev-blanks', 'df/f']
+        resp_norms = ['zscore-blanks', 'zscore-resps', 'stddev-blanks', 'df/f', 'df/std(df)']
         for i, resp_norm in enumerate(resp_norms, start=1):
             yield {
                 'data_params': i, 'test_set': 'repeats', 'split_seed': 1234,
@@ -226,8 +230,13 @@ class DataParams(dj.Lookup):
         elif resp_normalization == 'df/f':
             blank_responses = np.concatenate(
                 (data.Responses.PerImage & {'dset_id': dset_id}).fetch('blank_response'))
-            resp_mean = blank_responses.mean(0)  # do not subtract the mean
-            resp_std = blank_responses.mean(0)
+            resp_mean = blank_responses.mean(0)
+            resp_std = blank_responses.mean(0)    
+        elif resp_normalization == 'df/std(f)':
+            blank_responses = np.concatenate(
+                (data.Responses.PerImage & {'dset_id': dset_id}).fetch('blank_response'))
+            resp_mean = blank_responses.mean(0)
+            resp_std = (responses - resp_mean).std(0)
         else:
             msg = f'Response normalization {resp_normalization} not implemented'
             raise NotImplementedError(msg)
@@ -445,7 +454,7 @@ class TrainingParams(dj.Lookup):
         loss = 'poisson'
         seed = 7856
         wds = [0, 1e-7, 1e-6, 1e-5]
-        
+
         # SGD
         lrs = [1, 10, 100]
         for i, (lr, wd) in enumerate(itertools.product(lrs, wds), start=i + 1):
@@ -454,7 +463,7 @@ class TrainingParams(dj.Lookup):
                 'batch_size': 32, 'learning_rate': lr, 'momentum': 0.9, 'weight_decay': wd,
                 'loss_function': loss, 'lr_decay': 0.1, 'decay_epochs': 5,
                 'stopping_epochs': 30}
-        
+
         # ADAM
         lrs = [1e-3, 0.01, 0.1]
         for i, (lr, wd) in enumerate(itertools.product(lrs, wds), start=i + 1):
