@@ -232,7 +232,7 @@ class DataParams(dj.Lookup):
                 (data.Responses.PerImage & {'dset_id': dset_id}).fetch('blank_response'))
             resp_mean = blank_responses.mean(0)
             resp_std = blank_responses.mean(0)    
-        elif resp_normalization == 'df/std(f)':
+        elif resp_normalization == 'df/std(df)':
             blank_responses = np.concatenate(
                 (data.Responses.PerImage & {'dset_id': dset_id}).fetch('blank_response'))
             resp_mean = blank_responses.mean(0)
