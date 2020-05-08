@@ -108,11 +108,14 @@ from brainreader import params
 # train.TrainedModel.populate({'dset_id': 1, 'model_params': 1, 'data_params': 5},
 #                             'training_params <=6', reserve_jobs=True)  # df/std(df)
 
-train.TrainedModel.populate({'dset_id': 1, 'model_params': 4, 'data_params': 6},
-                            'training_params >72 AND training_params <=84', reserve_jobs=True)  # stddev-resps
+# train.TrainedModel.populate({'dset_id': 1, 'model_params': 4, 'data_params': 6},
+#                             'training_params >72 AND training_params <=84', reserve_jobs=True)  # stddev-resps
 
 
 
+train.TrainedModel.populate({'dset_id': 1, 'model_params': 4, 'data_params': 3},
+                            'training_params >96 AND training_params <=132',
+                            reserve_jobs=True)  # poissson + expscaled
 
 
 
