@@ -97,6 +97,22 @@ train.TrainedModel.populate({'dset_id': 1, 'model_params': 4, 'data_params': 3},
 
 
 
+
+
+train.TrainedModel.populate({'dset_id': 1, 'model_params': 1, 'data_params': 2},
+                            'training_params <=6', reserve_jobs=True) # zscore-resps
+
+train.TrainedModel.populate({'dset_id': 1, 'model_params': 1, 'data_params': 4},
+                            'training_params <=6', reserve_jobs=True)  # 
+
+train.TrainedModel.populate({'dset_id': 1, 'model_params': 1, 'data_params': 5},
+                            'training_params <=6', reserve_jobs=True)  # MSE + none
+
+
+
+
+
+
 # train.TrainedModel.populate({'dset_id': 1, 'model_params': 3 ,'data_params': 1},
 #                             'training_params <=16', reserve_jobs=True) # SGD and Adam
 # train.TrainedModel.populate({'dset_id': 1, 'data_params': 3, 'model_params': 16},
@@ -119,7 +135,6 @@ train.TrainedModel.populate({'dset_id': 1, 'model_params': 4, 'data_params': 3},
 # redo poisson
 # train.TrainedModel.populate({'dset_id': 1, 'data_params': 3, 'model_params': 22},
 #                             params.TrainingParams & {'loss_function': 'poisson', 'momentum': 0.9})
-
 
 # train.Evaluation.populate(reserve_jobs=True)
 # train.Ensemble.populate(reserve_jobs=True)
