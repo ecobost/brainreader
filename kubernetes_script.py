@@ -87,13 +87,13 @@ from brainreader import params
 
 
 
-train.TrainedModel.populate({'dset_id': 1, 'model_params': 3, 'data_params': 3},
-                            'training_params >72 AND training_params <=96',
-                            reserve_jobs=True)  # poissson + elu
+# train.TrainedModel.populate({'dset_id': 1, 'model_params': 3, 'data_params': 3},
+#                             'training_params >72 AND training_params <=96',
+#                             reserve_jobs=True)  # poissson + elu
 
-train.TrainedModel.populate({'dset_id': 1, 'model_params': 4, 'data_params': 3},
-                            'training_params >72 AND training_params <=96',
-                            reserve_jobs=True)  # poissson + expscaled
+# train.TrainedModel.populate({'dset_id': 1, 'model_params': 4, 'data_params': 3},
+#                             'training_params >72 AND training_params <=96',
+#                             reserve_jobs=True)  # poissson + expscaled
 
 
 
