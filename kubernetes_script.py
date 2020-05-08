@@ -99,14 +99,17 @@ from brainreader import params
 
 
 
-train.TrainedModel.populate({'dset_id': 1, 'model_params': 1, 'data_params': 2},
-                            'training_params <=6', reserve_jobs=True) # zscore-resps
+# train.TrainedModel.populate({'dset_id': 1, 'model_params': 1, 'data_params': 2},
+#                             'training_params <=6', reserve_jobs=True)  # zscore-resps
 
-train.TrainedModel.populate({'dset_id': 1, 'model_params': 1, 'data_params': 4},
-                            'training_params <=6', reserve_jobs=True)  # 
+# train.TrainedModel.populate({'dset_id': 1, 'model_params': 1, 'data_params': 4},
+#                             'training_params <=6', reserve_jobs=True)  # df/f
 
-train.TrainedModel.populate({'dset_id': 1, 'model_params': 1, 'data_params': 5},
-                            'training_params <=6', reserve_jobs=True)  # MSE + none
+# train.TrainedModel.populate({'dset_id': 1, 'model_params': 1, 'data_params': 5},
+#                             'training_params <=6', reserve_jobs=True)  # df/std(df)
+
+train.TrainedModel.populate({'dset_id': 1, 'model_params': 4, 'data_params': 6},
+                            'training_params >72 AND trainin_params <=84', reserve_jobs=True)  # stddev-resps
 
 
 
