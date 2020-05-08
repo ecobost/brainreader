@@ -109,7 +109,7 @@ from brainreader import params
 #                             'training_params <=6', reserve_jobs=True)  # df/std(df)
 
 train.TrainedModel.populate({'dset_id': 1, 'model_params': 4, 'data_params': 6},
-                            'training_params >72 AND trainin_params <=84', reserve_jobs=True)  # stddev-resps
+                            'training_params >72 AND training_params <=84', reserve_jobs=True)  # stddev-resps
 
 
 
