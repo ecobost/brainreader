@@ -94,8 +94,15 @@ class TrainedModel(dj.Computed):
             loss = F.mse_loss(pred_responses, responses)
         elif loss_function == 'poisson':
             loss = F.poisson_nll_loss(pred_responses, responses, log_input=False)
-        elif loss_function == 'exp': # nll for an exponential curve
-            loss = torch.log(pred_responses) + responses / (pred_responses + 1e-8)
+        elif loss_function == 'weighted_poisson':
+            weights = torch.ones_like(responses)
+            weights[responses < 1e-3] = 0.5  # downweight errors where response is zero
+            
+            loss = F.poisson_nll_loss(pred_responses, responses, log_input=False,
+                                      reduction='none')
+            loss = (loss * weights).mean()
+        elif loss_function == 'exp': # nll for an exponential distribution
+            loss = torch.log(pred_responses + 1e-8) + responses / (pred_responses + 1e-8)
             loss = loss.mean()
         else:
             raise NotImplementedError(f'Loss function {loss_function} not implemented')
@@ -189,7 +196,7 @@ class TrainedModel(dj.Computed):
                 pred_responses = model(images)
 
                 # Compute loss
-                loss = TrainedModel._compute_loss(responses, pred_responses, 
+                loss = TrainedModel._compute_loss(responses, pred_responses,
                                                   train_params['loss_function'])
 
                 # Check for divergence
@@ -219,7 +226,7 @@ class TrainedModel(dj.Computed):
                     pred_responses = torch.cat([r[1] for r in all_resps])
                     model.train()
 
-                    val_loss = TrainedModel._compute_loss(responses, pred_responses, 
+                    val_loss = TrainedModel._compute_loss(responses, pred_responses,
                                                           train_params['loss_function'])
                     val_corr = compute_correlation(responses, pred_responses)
 
