@@ -122,9 +122,13 @@ from brainreader import params
 #                             'training_params >72 AND training_params <=84',
 #                             reserve_jobs=True)  # different mlps
 
-train.TrainedModel.populate({'dset_id': 1, 'data_params': 3, 'model_params': 4},
-                            'training_params >132 AND training_params <=144',
-                            reserve_jobs=True)  # different mlps
+# train.TrainedModel.populate({'dset_id': 1, 'data_params': 3, 'model_params': 4},
+#                             'training_params >132 AND training_params <=144',
+#                             reserve_jobs=True)  # weighted poisson
+
+train.TrainedModel.populate({'dset_id': 1, 'data_params': 3}, 'model_params in (8, 9, 10, 11)',
+                            'training_params >72 AND training_params <=84',
+                            reserve_jobs=True)  # konstinets
 
 
 

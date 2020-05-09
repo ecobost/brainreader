@@ -480,8 +480,8 @@ class TrainingParams(dj.Lookup):
         # wds = [1e-7, 1e-6, 1e-5] #TODO: maybe add 0 here too
         # lrs = [10, 100] # use [1, 10] if using elu activation
         # batch_size 64 # hopefully more stable and similar results
-        
-        
+
+
         # Test weighted loss
         loss = 'weighted_poisson'
         seed = 7856
@@ -498,6 +498,30 @@ class TrainingParams(dj.Lookup):
 
 
 ############################## MODELS ###############################
+
+# TODO:
+# @schema
+# class KonstiParams(dj.Lookup):
+#     definition = """ # feature extractor inspired on our previous best one
+    
+#     core_id:            smallint    # id for vgg nets
+#     ---
+#     resized_img_dims:   smallint    # resize the input to this dimension at 1:1 aspect ratio (-1 to avoid it)
+#     layers_per_block:   tinyblob    # number of layers per block
+#     features_per_block: tinyblob    # number of feature maps in each block
+#     use_batchnorm:      boolean     # whether to use batchnorm in the architecture
+#     """
+#     contents = [
+#         {
+#             'core_id': 1, 'resized_img_dims': 128, 'layers_per_block': [2, 2, 2, 2, 2],
+#             'features_per_block': [32, 64, 96, 128, 160], 'use_batchnorm': True},
+#         # {'core_id': 2, 'resized_img_dims': 128, 'layers_per_block': [2, 2, 2, 2, 2],
+#         #  'features_per_block': [32, 64, 96, 128, 160], 'use_batchnorm': False},
+#         # {'core_id': 2, 'resized_img_dims': 128, 'layers_per_block': [1, 1, 1, 1, 1],
+#         #  'features_per_block': [32, 64, 96, 128, 160], 'use_batchnorm': True},
+#         # {'core_id': 3, 'resized_img_dims': 128, 'layers_per_block': [2, 2, 2],
+#         #  'features_per_block': [32, 96, 160], 'use_batchnorm': True},
+#     ]
 
 
 @schema
@@ -699,6 +723,13 @@ class ModelParams(dj.Lookup):
                    'agg_id': 1, 'readout_type': 'mlp', 'readout_id': readout_id,
                    'act_type': 'exp', 'act_id': 2}
 
+        # Test KonstiNet (8, 9, 10, 11)
+        for i, core_id in enumerate([1, 2, 3, 4], start=i + 1):
+            yield {
+                'model_params': i, 'core_type': 'konsti', 'core_id': 1,
+                'agg_type': 'gaussian', 'agg_id': 1, 'readout_type': 'mlp',
+                'readout_id': 1, 'act_type': 'exp', 'act_id': 2}
+
 
     def get_model(self, num_cells, in_channels=1, out_channels=1):
         """ Builds a network with the desired modules
@@ -741,6 +772,31 @@ class ModelParams(dj.Lookup):
                     'compression_factor']
             core_params = (DenseNetParams & self).fetch1()
             core_kwargs = {k: core_params[k] for k in args}
+
+
+        elif core_type == 'konsti':
+            #TODO: do this properly
+            core_id = self.fetch1('core_id')
+            if core_id == 1: # the small one konsti uses
+                core_kwargs = {'resized_img_dims': (36, 64),
+                               'num_features': (64, 64, 64, 64),
+                               'kernel_sizes': (9, 7, 7, 7), 'padding': (0, 3, 3, 3)}
+            if core_id == 2: # same but without extra conv
+                core_kwargs = {'resized_img_dims': (36, 64),
+                               'num_features': (64, 64, 64, 64),
+                               'kernel_sizes': (9, 7, 7, 7), 'padding': (0, 3, 3, 3),
+                               'use_extra_conv': False}
+            if core_id == 3: # same but with reLU
+                core_kwargs = {'resized_img_dims': (36, 64),
+                               'num_features': (64, 64, 64, 64),
+                               'kernel_sizes': (9, 7, 7, 7), 'padding': (0, 3, 3, 3),
+                               'use_elu': False}
+            if core_id == 4: # similar for big resolution
+                core_kwargs = {'resized_img_dims': (128, 128),
+                               'num_features': (64, 64, 64, 64),
+                               'kernel_sizes': (19, 15, 15, 15), 'padding': (9, 7, 7, 7),
+                               'use_elu': False, 'use_extra_conv': False}
+
         else:
             raise NotImplementedError(f'Core {core_type} not implemented')
         core = models.build_extractor(core_type, in_channels=in_channels, **core_kwargs)
