@@ -96,7 +96,7 @@ class TrainedModel(dj.Computed):
             loss = F.poisson_nll_loss(pred_responses, responses, log_input=False)
         elif loss_function == 'weighted_poisson':
             weights = torch.ones_like(responses)
-            weights[responses < 1e-3] = 0.5  # downweight errors where response is zero
+            weights[responses < 1e-3] = 0.1  # downweight errors where response is zero
             
             loss = F.poisson_nll_loss(pred_responses, responses, log_input=False,
                                       reduction='none')
