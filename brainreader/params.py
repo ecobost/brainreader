@@ -804,7 +804,7 @@ class ModelParams(dj.Lookup):
             if core_id == 6: # original but square input (64 x 64)
                 core_kwargs = {'resized_img_dims': (72, 128),
                                'num_features': (64, 64, 64, 64),
-                               'kernel_sizes': (19, 15, 15, 15), 'padding': (0, 7, 7, 7),
+                               'kernel_sizes': (17, 13, 13, 13), 'padding': (8, 6, 6, 6),
                                'use_elu': True, 'use_extra_conv': True}
 
         else:
