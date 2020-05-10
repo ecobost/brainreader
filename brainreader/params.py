@@ -730,7 +730,7 @@ class ModelParams(dj.Lookup):
                    'act_type': 'exp', 'act_id': 2}
 
         # Test KonstiNet (8, 9, 10, 11, 12, 13)
-        for i, core_id in enumerate([1, 2, 3, 4, 5, 6, 7, 8], start=i + 1):
+        for i, core_id in enumerate([1, 2, 3, 4, 5, 6, 7, 8, 9, 10], start=i + 1):
             yield {
                 'model_params': i, 'core_type': 'konsti', 'core_id': core_id,
                 'agg_type': 'gaussian', 'agg_id': 1, 'readout_type': 'mlp',
@@ -822,6 +822,16 @@ class ModelParams(dj.Lookup):
                            'num_features': (64, 64, 64, 64),
                            'kernel_sizes': (15, 9, 9, 9), 'padding': (7, 4, 4, 4),
                            'use_elu': True, 'use_extra_conv': True}
+            if core_id == 9: # 96 x 96
+                core_kwargs = {'resized_img_dims': (96, 96),
+                           'num_features': (64, 64, 64, 64),
+                           'kernel_sizes': (11, 7, 7, 7), 'padding': (5, 3, 3, 3),
+                           'use_elu': True, 'use_extra_conv': True}
+            if core_id == 10: # original but with padding in first layer
+                core_kwargs = {'resized_img_dims': (36, 64),
+                               'num_features': (64, 64, 64, 64),
+                               'kernel_sizes': (9, 7, 7, 7), 'padding': (4, 3, 3, 3)}
+
 
         else:
             raise NotImplementedError(f'Core {core_type} not implemented')

@@ -127,12 +127,12 @@ from brainreader import params
 #                             reserve_jobs=True)  # weighted poisson
 
 train.TrainedModel.populate({'dset_id': 1, 'data_params': 3}, 
-                            'model_params >= 8 AND model_params <= 15',
+                            'model_params >= 8 AND model_params <= 17',
                             'training_params >72 AND training_params <=84',
                             reserve_jobs=True)  # konstinets
 
 train.TrainedModel.populate({'dset_id': 1, 'data_params': 3, 'training_params': 145},
-                            'model_params >= 8 AND model_params <= 15',
+                            'model_params >= 8 AND model_params <= 17',
                             reserve_jobs=True)  # konstinets
 
 
