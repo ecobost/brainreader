@@ -41,18 +41,22 @@ class KonstiNet(nn.Module):
     """
     def __init__(self, in_channels=1, resized_img_dims=(36, 64),
                  num_features=(64, 64, 64, 64), kernel_sizes=(9, 7, 7, 7),
-                 padding=(0, 3, 3, 3), use_elu=True, use_extra_conv=True):
+                 padding=(0, 3, 3, 3), use_elu=True, use_extra_conv=True, 
+                 use_normal_conv=False):
         super().__init__()
 
         # Create the layers
         layers = []
-        for in_f, out_f, ks, p in zip([in_channels, *num_features], num_features, 
+        for in_f, out_f, ks, p in zip([in_channels, *num_features], num_features,
                                       kernel_sizes, padding):
-            if use_extra_conv:
-                layers.append(nn.Conv2d(in_f, in_f, kernel_size=1, bias=False))
-            layers.append(nn.Conv2d(in_f, in_f, kernel_size=ks, padding=p, groups=in_f, 
-                                    bias=False))
-            layers.append(nn.Conv2d(in_f, out_f, kernel_size=1, bias=False))
+            if use_normal_conv:
+                layers.append(nn.Conv2d(in_f, out_f, kernel_size=ks, padding=p, bias=False))
+            else:
+                if use_extra_conv:
+                    layers.append(nn.Conv2d(in_f, in_f, kernel_size=1, bias=False))
+                layers.append(nn.Conv2d(in_f, in_f, kernel_size=ks, padding=p, groups=in_f,
+                                        bias=False))
+                layers.append(nn.Conv2d(in_f, out_f, kernel_size=1, bias=False))
             layers.append(nn.BatchNorm2d(out_f))
             layers.append(nn.ELU(inplace=True) if use_elu else nn.ReLU(inplace=True))
         self.layers = nn.Sequential(*layers)
@@ -63,7 +67,7 @@ class KonstiNet(nn.Module):
         dim_change = 2 * sum(padding) - sum([k-1 for k in kernel_sizes])
         self.out_height = resized_img_dims[0] + dim_change
         self.out_width = resized_img_dims[1] + dim_change
-    
+
     def forward(self, input_):
         input_ = F.interpolate(input_, size=self.resized_img_dims, mode='bilinear',
                                align_corners=False)  # align_corners avoids warnings
@@ -74,103 +78,88 @@ class KonstiNet(nn.Module):
         init_bn(m for m in self.layers if isinstance(m, nn.BatchNorm2d))
 
 
+class SmallNet(nn.Module):
+    """ Simple 3 layer core similar to the one we use in cajal/static-networks.
+
+    The one we use in static-networks, receives a 36 x 64 input, uses an initial
+    convolution with a 15 x 15 kernel and no padding to convert it into a 22 x 50 x 32
+    block, then uses two 7x7 convolutions (with padding) and 32 features each. It uses
+    batchnorm and an ELU activation after each conv. The output of these three layers
+    is concatenated to produce a 22 x 50 x 96 block. Each feature map is then
+    successively smoothed with a 5 x 5 gaussian filter (5 times) and the original
+    feature map plus the features map that result from subtracting the smoothed
+    versions from the original are concatenated to produce the final 22 x 50 x 576
+    block.
+    """
+    def __init__(self, in_channels=1, resized_img_dims=(36, 64),
+                 num_features=(32, 32, 32), kernel_sizes=(15, 7, 7), padding=(0, 3, 3),
+                 num_downsamplings=5):
+        super().__init__()
+
+        # Create layers
+        layers = []
+        for in_f, out_f, ks, p in zip([in_channels, *num_features], num_features,
+                                      kernel_sizes, padding):
+            layers.append(nn.Sequential(nn.Conv2d(in_f, out_f, kernel_size=ks, padding=p, bias=False),
+                          nn.BatchNorm2d(out_f), nn.ELU(inplace=True))) #TODO: check if i can use relu
+        self.layers = nn.ModuleList(layers)
+
+        # Create a gaussian window
+        #TODO: Define how big is the standard deviaton in staticnet given 36 x 64 (for instance if it is 18x18, that means it is twice the size of the image and i should use that here, given the std i would neeed here i can define the size of the mask)
+        gaussian_std = (4, 5)
+
+        utils.bivariate_gaussian()
+
+        # compute size for the gaussian mask
+        from featurevis import ops
+        self.blur = ops.GaussianBlur(5, 5)
+
+        OR
 
 
+        mask = F.bivariate_gaussian(...) # TODO: find the size that matches whatever is in the 5 x5 thing, actual size is unimportant, this should be different on height and width, so std on x and y should be different.
+        self.gaussian_kernel = gaussian_mask / gaussian_mask.sum()
 
 
+    """
+        if use_original:
+            resized_dims = 36, 64
+            input_kernel_size = 15
+            pad_input = False
+            hidden_kernel_size = 7
+            num_downsamplings = 5
+        else:
+            resized_dims = 128, 128
+            input_kernel_size = 31
+            pad_input=True
+            hidden_kernel_size = 15
+            num_downsamplings=0
+    """
 
-# class SmallNet(nn.Module):
-#     """ Simple 3 layer core similar to the one we use in cajal/static-networks.
+    def forward(self, input_):
+        resized = F.interpolate(input_, size=self.resized_img_dims, mode='bilinear',
+                                   align_corners=False)  # align_corners avoids warnings
+        h = torch.cat([l(resized) for l in self.layers], dim=1)
 
-#     Reference:
-#         The one we use in static-networks, receives a 36 x 64 input, uses an initial
-#         convolution with a 15 x 15 kernel and no padding to convert it into a 22 x 50 x 32
-#         block, then uses two 7x7 convolutions (with padding) and 32 features each. It uses
-#         batchnorm and an ELU activation after each conv. The output of these three layers
-#         is concatenated to produce a 22 x 50 x 96 block. Each feature map is then
-#         successively smoothed with a 5 x 5 gaussian filter (5 times) and the original
-#         feature map plus the features map that result from subtracting the smoothed
-#         versions from the original are concatenated to produce the final 22 x 50 x 576
-#         block.
+        # Create laplace pyramid
+        parts = [h]
+        blurred = h
+        for i in range(self.num_downsamplings):
+            # Blur
+            h, w = self.gaussian_kernel.shape
+            num_channels = padded.shape[1]
+            padded = F.pad(blurred, pad=(h // 2, h // 2, w // 2, w // 2), mode='reflect')
+            blurred = F.conv2d(padded, self.gaussian_kernel.repeat(num_channels, 1, 1, 1),
+                               groups=num_channels)
 
-#         Konstantin Wileke in Matthias Betge lab uses a 4 layer network with input kernel
-#         size 9 x 9 (no padding) and hidden kernel size 7 x 7 and 64 feature maps all along.
-#         He does not concatenate results of each hidden layer or use the pyramid stuff in
-#         the end. So the output is a 28 x 56 x 64 block. He does use however depth
-#         separable convolutions in each layer, i.e., instead of a 7 x 7 x in_features
-#         kernel it learns a 7 x 7 kernel and a in_features kernel that get (outer)
-#         multiplied together to full kernel (or applied one after the other for efficiency).
-#     """
-#     def __init__(self, resized_img_dims=128, use_pyramid):
-#         super().__init__()
+            parts.append(output - blurred)
+        output = torch.cat(parts, dim=1)
 
-#         in_padding = in_kernel // 2
-#         self.layer1 = nn.Sequential(nn.Conv2d(15, padding=in_padding, bias=False),
-#                                     nn.Batchnorm2d
-#                                     nn.ELU)
+        return output
 
-#         hidden_padding = hidden_kernel // 2
-#         self.layer2 = ...
-
-#         self.layer3 = ...
-
-#         # Initialize a gaussian kernel
-#         mask = F.bivariate_gaussian(...) # TODO: find the size that matches whatever is in the 5 x5 thing, actual size is unimportant, this should be different on height and width, so std on x and y should be different.
-#         mask = mask / mask.sum()
-
-#         self.gaussian_kernel = gaussian_mask / gaussian_mask.sum()
-
-#         #Options:
-#             implement the exact one
-#                 with pyrami
-#                 without pyramid
-#             implement a big one: 128 x 128, no dropping stuff in the first layer, convs will be scaled to make sense
-#                 probably only wo pyramid
-#                 Advantage: higher res original input (can use more deatils in the image), does not drop pixels in the edges after first conv
-
-
-#         #TODO: should I initially downsample to 36 x 64
-
-#         if use_original:
-#             resized_dims = 36, 64
-#             input_kernel_size = 15
-#             pad_input = False
-#             hidden_kernel_size = 7
-#             num_downsamplings = 5
-#         else:
-#             resized_dims = 128, 128
-#             input_kernel_size = 31
-#             pad_input=True
-#             hidden_kernel_size = 15
-#             num_downsamplings=0
-
-
-#         layer1 = nn.Sequential()
-#         for kernel_sizes in (15, 7, 7):
-#             layers.append(nn.Conv2d(15, 15, ))
-
-#         self.use_pyramid = use_pyramid
-#         if self.use_pyramid:
-#             gauss_filter = ...
-
-
-#     def forward(self, input_):
-#         if self.resized_img_dims > 0:
-#             input_ = F.interpolate(input_, size=self.resized_img_dims, mode='bilinear',
-#                                    align_corners=False)  # align_corners avoids warnings
-#         h1 = self.layer1(input_)
-#         h2 = self.layer2(input_)
-#         h3 = self.layer3(input_)
-#         output = torch.cat([h1, h2, h3])
-
-#         parts = [output]
-#         smooth = output
-#         for i in self.num_downsamplings:
-#             smooth = F.conv3d(smooth, self.gaussian_filter)
-#             output.append(output - smooth)
-#         output = torch.cat(parts)
-
-#         return output
+    def init_parameters(self):
+        init_conv(m for m in self.layers if isinstance(m, nn.Conv2d))
+        init_bn(m for m in self.layers if isinstance(m, nn.BatchNorm2d))
 
 
 class VGG(nn.Module):

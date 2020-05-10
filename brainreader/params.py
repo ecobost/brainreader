@@ -496,6 +496,12 @@ class TrainingParams(dj.Lookup):
                 'loss_function': loss, 'lr_decay': 0.1, 'decay_epochs': 5,
                 'stopping_epochs': 30}
 
+        # Extra small regularization
+        yield {'training_params': i+1, 'seed': 7856, 'num_epochs': 200, 'val_epochs': 1,
+               'batch_size': 32, 'learning_rate': 10, 'momentum': 0.9, 
+               'weight_decay': 1e-8, 'loss_function': 'poisson', 'lr_decay': 0.1,
+               'decay_epochs': 5, 'stopping_epochs': 30}
+
 
 ############################## MODELS ###############################
 
@@ -503,7 +509,7 @@ class TrainingParams(dj.Lookup):
 # @schema
 # class KonstiParams(dj.Lookup):
 #     definition = """ # feature extractor inspired on our previous best one
-    
+
 #     core_id:            smallint    # id for vgg nets
 #     ---
 #     resized_img_dims:   smallint    # resize the input to this dimension at 1:1 aspect ratio (-1 to avoid it)
@@ -724,7 +730,7 @@ class ModelParams(dj.Lookup):
                    'act_type': 'exp', 'act_id': 2}
 
         # Test KonstiNet (8, 9, 10, 11, 12, 13)
-        for i, core_id in enumerate([1, 2, 3, 4, 5, 6], start=i + 1):
+        for i, core_id in enumerate([1, 2, 3, 4, 5, 6, 7], start=i + 1):
             yield {
                 'model_params': i, 'core_type': 'konsti', 'core_id': core_id,
                 'agg_type': 'gaussian', 'agg_id': 1, 'readout_type': 'mlp',
