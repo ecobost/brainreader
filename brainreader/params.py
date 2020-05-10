@@ -812,6 +812,11 @@ class ModelParams(dj.Lookup):
                                'num_features': (64, 64, 64, 64),
                                'kernel_sizes': (17, 13, 13, 13), 'padding': (8, 6, 6, 6),
                                'use_elu': True, 'use_extra_conv': True}
+            if core_id == 7: # the small one konsti uses
+                core_kwargs = {'resized_img_dims': (36, 64),
+                               'num_features': (64, 64, 64, 64),
+                               'kernel_sizes': (9, 7, 7, 7), 'padding': (0, 3, 3, 3), 
+                               'use_normal_conv': True}
 
         else:
             raise NotImplementedError(f'Core {core_type} not implemented')
