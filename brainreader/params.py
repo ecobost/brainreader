@@ -730,7 +730,7 @@ class ModelParams(dj.Lookup):
                    'act_type': 'exp', 'act_id': 2}
 
         # Test KonstiNet (8, 9, 10, 11, 12, 13)
-        for i, core_id in enumerate([1, 2, 3, 4, 5, 6, 7], start=i + 1):
+        for i, core_id in enumerate([1, 2, 3, 4, 5, 6, 7, 8], start=i + 1):
             yield {
                 'model_params': i, 'core_type': 'konsti', 'core_id': core_id,
                 'agg_type': 'gaussian', 'agg_id': 1, 'readout_type': 'mlp',
@@ -807,16 +807,21 @@ class ModelParams(dj.Lookup):
                                'num_features': (64, 64, 64, 64),
                                'kernel_sizes': (9, 7, 7, 7), 'padding': (0, 3, 3, 3),
                                'use_elu': True, 'use_extra_conv': True}
-            if core_id == 6: # original but square input (64 x 64)
+            if core_id == 6: # original at 72 x 128
                 core_kwargs = {'resized_img_dims': (72, 128),
                                'num_features': (64, 64, 64, 64),
                                'kernel_sizes': (17, 13, 13, 13), 'padding': (8, 6, 6, 6),
                                'use_elu': True, 'use_extra_conv': True}
-            if core_id == 7: # the small one konsti uses
+            if core_id == 7: # normal convolution rather than ds conv
                 core_kwargs = {'resized_img_dims': (36, 64),
                                'num_features': (64, 64, 64, 64),
                                'kernel_sizes': (9, 7, 7, 7), 'padding': (0, 3, 3, 3), 
                                'use_normal_conv': True}
+            if core_id == 8: # 128 x 128 smaller filters
+                core_kwargs = {'resized_img_dims': (128, 128),
+                           'num_features': (64, 64, 64, 64),
+                           'kernel_sizes': (15, 9, 9, 9), 'padding': (7, 4, 4, 4),
+                           'use_elu': True, 'use_extra_conv': True}
 
         else:
             raise NotImplementedError(f'Core {core_type} not implemented')
