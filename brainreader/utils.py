@@ -53,6 +53,26 @@ def compute_correlation(x, y, eps=1e-8):
 
     return corrs
 
+def create_grid(height, width):
+    """ Creates a sampling grid (from -1 to 1) of the desired dimensions.
+    
+    Arguments:
+        height (int): Desired height.
+        width (int): Desired width.
+    
+    Returns:
+        grid_xy (torch.tensor): A grid array (height x width x 2) with the positions of 
+            each coordinate in x and y.
+    """
+    x = torch.arange(width, dtype=torch.float32) + 0.5
+    y = torch.arange(height, dtype=torch.float32) + 0.5
+    x_coords = 2 * x / width - 1
+    y_coords = 2 * y / height - 1
+    grid_y, grid_x = torch.meshgrid(y_coords, x_coords)
+    grid_xy = torch.stack([grid_x, grid_y], -1)
+    
+    return grid_xy
+
 
 def bivariate_gaussian(xy, xy_mean, xy_std, corr_xy, normalize=False, eps=1e-8):
     """ Compute the pdf of a bivariate gaussian distribution.
