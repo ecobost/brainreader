@@ -42,13 +42,13 @@ class KonstiNet(nn.Module):
     def __init__(self, in_channels=1, resized_img_dims=(36, 64),
                  num_features=(64, 64, 64, 64), kernel_sizes=(9, 7, 7, 7),
                  padding=(0, 3, 3, 3), use_elu=True, use_extra_conv=True, 
-                 use_normal_conv=False):
+                 use_normal_conv=False, use_pooling=False):
         super().__init__()
 
         # Create the layers
         layers = []
-        for in_f, out_f, ks, p in zip([in_channels, *num_features], num_features,
-                                      kernel_sizes, padding):
+        for i, (in_f, out_f, ks, p) in enumerate(zip([in_channels, *num_features], num_features,
+                                      kernel_sizes, padding)):
             if use_normal_conv:
                 layers.append(nn.Conv2d(in_f, out_f, kernel_size=ks, padding=p, bias=False))
             else:
@@ -59,6 +59,8 @@ class KonstiNet(nn.Module):
                 layers.append(nn.Conv2d(in_f, out_f, kernel_size=1, bias=False))
             layers.append(nn.BatchNorm2d(out_f))
             layers.append(nn.ELU(inplace=True) if use_elu else nn.ReLU(inplace=True))
+            if use_pooling and i > 0 and i%2 == 0:
+                layers.append(nn.AvgPool2d())
         self.layers = nn.Sequential(*layers)
 
         # Save some params
@@ -67,6 +69,10 @@ class KonstiNet(nn.Module):
         dim_change = 2 * sum(padding) - sum([k-1 for k in kernel_sizes])
         self.out_height = resized_img_dims[0] + dim_change
         self.out_width = resized_img_dims[1] + dim_change
+        
+        if use_pooling:
+            self.out_height = self.out_height / 2
+            self.out_width = self.out_width / 2
 
     def forward(self, input_):
         input_ = F.interpolate(input_, size=self.resized_img_dims, mode='bilinear',

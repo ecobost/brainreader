@@ -498,7 +498,7 @@ class TrainingParams(dj.Lookup):
 
         # Extra small regularization
         yield {'training_params': i+1, 'seed': 7856, 'num_epochs': 200, 'val_epochs': 1,
-               'batch_size': 32, 'learning_rate': 10, 'momentum': 0.9, 
+               'batch_size': 32, 'learning_rate': 10, 'momentum': 0.9,
                'weight_decay': 1e-8, 'loss_function': 'poisson', 'lr_decay': 0.1,
                'decay_epochs': 5, 'stopping_epochs': 30}
 
@@ -730,7 +730,7 @@ class ModelParams(dj.Lookup):
                    'act_type': 'exp', 'act_id': 2}
 
         # Test KonstiNet (8, 9, 10, 11, 12, 13)
-        for i, core_id in enumerate([1, 2, 3, 4, 5, 6, 7, 8, 9, 10], start=i + 1):
+        for i, core_id in enumerate([1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12], start=i + 1):
             yield {
                 'model_params': i, 'core_type': 'konsti', 'core_id': core_id,
                 'agg_type': 'gaussian', 'agg_id': 1, 'readout_type': 'mlp',
@@ -815,7 +815,7 @@ class ModelParams(dj.Lookup):
             if core_id == 7: # normal convolution rather than ds conv
                 core_kwargs = {'resized_img_dims': (36, 64),
                                'num_features': (64, 64, 64, 64),
-                               'kernel_sizes': (9, 7, 7, 7), 'padding': (0, 3, 3, 3), 
+                               'kernel_sizes': (9, 7, 7, 7), 'padding': (0, 3, 3, 3),
                                'use_normal_conv': True}
             if core_id == 8: # 128 x 128 smaller filters
                 core_kwargs = {'resized_img_dims': (128, 128),
@@ -831,6 +831,16 @@ class ModelParams(dj.Lookup):
                 core_kwargs = {'resized_img_dims': (36, 64),
                                'num_features': (64, 64, 64, 64),
                                'kernel_sizes': (9, 7, 7, 7), 'padding': (4, 3, 3, 3)}
+            if core_id == 11: # deeper version
+                core_kwargs = {'resized_img_dims': (64, 64),
+                               'num_features': (64, 64, 64, 64, 64, 64),
+                               'kernel_sizes': (9, 7, 7, 7, 7, 7), 'padding': (4, 3, 3, 3, 3, 3)}
+            if core_id == 12:  # add downsampling
+                core_kwargs = {
+                    'resized_img_dims': (64, 64),
+                    'num_features': (64, 64, 64, 64),
+                    'kernel_sizes': (9, 7, 7, 7), 'padding': (4, 3, 3, 3), 
+                    'use_pooling': True}
 
 
         else:
