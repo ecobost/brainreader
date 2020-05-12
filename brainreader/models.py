@@ -128,21 +128,6 @@ class StaticNet(nn.Module):
         self.out_width = resized_img_dims[1] + dim_change
         self.num_downsamplings = num_downsamplings
 
-    """
-        if use_original:
-            resized_dims = 36, 64
-            input_kernel_size = 15
-            pad_input = False
-            hidden_kernel_size = 7
-            num_downsamplings = 5
-        else:
-            resized_dims = 128, 128
-            input_kernel_size = 31
-            pad_input=True
-            hidden_kernel_size = 15
-            num_downsamplings=0
-    """
-
     def forward(self, input_):
         resized = F.interpolate(input_, size=self.resized_img_dims, mode='bilinear',
                                 align_corners=False)  # align_corners avoids warnings
