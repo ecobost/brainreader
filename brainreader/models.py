@@ -41,7 +41,7 @@ class KonstiNet(nn.Module):
     """
     def __init__(self, in_channels=1, resized_img_dims=(36, 64),
                  num_features=(64, 64, 64, 64), kernel_sizes=(9, 7, 7, 7),
-                 padding=(0, 3, 3, 3), use_elu=True, use_extra_conv=True, 
+                 padding=(0, 3, 3, 3), use_elu=True, use_extra_conv=True,
                  use_normal_conv=False, use_pooling=False):
         super().__init__()
 
@@ -69,7 +69,7 @@ class KonstiNet(nn.Module):
         dim_change = 2 * sum(padding) - sum([k-1 for k in kernel_sizes])
         self.out_height = resized_img_dims[0] + dim_change
         self.out_width = resized_img_dims[1] + dim_change
-        
+
         if use_pooling:
             self.out_height = self.out_height / 2
             self.out_width = self.out_width / 2
@@ -84,7 +84,7 @@ class KonstiNet(nn.Module):
         init_bn(m for m in self.layers if isinstance(m, nn.BatchNorm2d))
 
 
-class SmallNet(nn.Module):
+class StaticNet(nn.Module):
     """ Simple 3 layer core similar to the one we use in cajal/static-networks.
 
     The one we use in static-networks, receives a 36 x 64 input, uses an initial
@@ -110,14 +110,22 @@ class SmallNet(nn.Module):
                           nn.BatchNorm2d(out_f), nn.ELU(inplace=True)))
         self.layers = nn.ModuleList(layers)
 
-        # Create a 7x7 gaussian mask 
+        # Create a 7x7 gaussian mask
         grid_xy = utils.create_grid(7, 7) # 7 x 7 x 2
-        gaussian_kernel = utils.bivariate_gaussian(grid_xy.view(-1, 2), 
-                                                   xy_mean=torch.tensor([[0, 0]]), 
-                                                   xy_std=torch.tensor([[0.42, 0.42]]), 
+        gaussian_kernel = utils.bivariate_gaussian(grid_xy.view(-1, 2),
+                                                   xy_mean=torch.tensor([[0, 0]]),
+                                                   xy_std=torch.tensor([[0.42, 0.42]]),
                                                    corr_xy=torch.tensor([0]))
         gaussian_kernel = gaussian_kernel.view(7, 7)
-        self.gaussian_kernel = gaussian_mask / gaussian_mask.sum()
+        self.gaussian_kernel = gaussian_kernel / gaussian_kernel.sum()
+
+        # Save some params
+        self.resized_img_dims = resized_img_dims
+        self.out_channels = num_features[-1]
+        dim_change = 2 * sum(padding) - sum([k - 1 for k in kernel_sizes])
+        self.out_height = resized_img_dims[0] + dim_change
+        self.out_width = resized_img_dims[1] + dim_change
+        self.num_downsamplings = num_downsamplings
 
     """
         if use_original:
@@ -137,20 +145,25 @@ class SmallNet(nn.Module):
     def forward(self, input_):
         resized = F.interpolate(input_, size=self.resized_img_dims, mode='bilinear',
                                 align_corners=False)  # align_corners avoids warnings
-        concat = torch.cat([l(resized) for l in self.layers], dim=1)
+        parts = []  #TODO: right now because of the padding in the first layer, cna't also add the first layer to the output
+        prev = resized
+        for l in self.layers:
+            prev = l(prev)
+            parts.append(prev)
+        hidden = torch.cat(parts, dim=1)
 
         # Create laplace pyramid
-        parts = [h]
-        blurred = h
+        parts = [hidden]
+        blurred = hidden
         for i in range(self.num_downsamplings):
             # Blur
             h, w = self.gaussian_kernel.shape
-            num_channels = padded.shape[1]
+            num_channels = blurred.shape[1]
             padded = F.pad(blurred, pad=(h // 2, h // 2, w // 2, w // 2), mode='reflect')
             blurred = F.conv2d(padded, self.gaussian_kernel.repeat(num_channels, 1, 1, 1),
                                groups=num_channels)
 
-            parts.append(h - blurred)
+            parts.append(hidden - blurred)
         output = torch.cat(parts, dim=1)
 
         return output
@@ -491,7 +504,7 @@ class RevNet(nn.Module):
     #TODO:
     pass
 
-extractors = {'konsti': KonstiNet, 'vgg': VGG, 'resnet': ResNet, 'densenet': DenseNet}
+extractors = {'konsti': KonstiNet, 'static': StaticNet, 'vgg': VGG, 'resnet': ResNet, 'densenet': DenseNet}
 def build_extractor(type_='vgg', **kwargs):
     """ Build a feature extractor module.
     

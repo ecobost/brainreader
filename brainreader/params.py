@@ -729,10 +729,17 @@ class ModelParams(dj.Lookup):
                    'agg_id': 1, 'readout_type': 'mlp', 'readout_id': readout_id,
                    'act_type': 'exp', 'act_id': 2}
 
-        # Test KonstiNet (8, 9, 10, 11, 12, 13)
+        # Test KonstiNet (8-19)
         for i, core_id in enumerate([1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12], start=i + 1):
             yield {
                 'model_params': i, 'core_type': 'konsti', 'core_id': core_id,
+                'agg_type': 'gaussian', 'agg_id': 1, 'readout_type': 'mlp',
+                'readout_id': 1, 'act_type': 'exp', 'act_id': 2}
+            
+        # Test staticnet (20-22)
+        for i, core_id in enumerate([1, 2, 3], start=i + 1):
+            yield {
+                'model_params': i, 'core_type': 'static', 'core_id': core_id,
                 'agg_type': 'gaussian', 'agg_id': 1, 'readout_type': 'mlp',
                 'readout_id': 1, 'act_type': 'exp', 'act_id': 2}
 
@@ -839,9 +846,27 @@ class ModelParams(dj.Lookup):
                 core_kwargs = {
                     'resized_img_dims': (64, 64),
                     'num_features': (64, 64, 64, 64),
-                    'kernel_sizes': (9, 7, 7, 7), 'padding': (4, 3, 3, 3), 
+                    'kernel_sizes': (9, 7, 7, 7), 'padding': (4, 3, 3, 3),
                     'use_pooling': True}
 
+        elif core_type == 'static':
+            #TODO: do this properly
+            core_id = self.fetch1('core_id')
+            if core_id == 1: # standard staticnet
+                core_kwargs = {'resized_img_dims': (36, 64),
+                               'num_features': (32, 32, 32),
+                               'kernel_sizes': (15, 7, 7), 'padding': (0, 3, 3, 3),
+                               'num_downsamplings': 5}
+            if core_id == 2: # no pyramidal
+                core_kwargs = {
+                    'resized_img_dims': (36, 64), 'num_features': (32, 32, 32),
+                    'kernel_sizes': (15, 7, 7), 'padding': (0, 3, 3, 3),
+                    'num_downsamplings': 0}
+            if core_id == 3: # (96, 96)
+                core_kwargs = {
+                    'resized_img_dims': (96, 96), 'num_features': (32, 32, 32),
+                    'kernel_sizes': (17, 9, 9), 'padding': (8, 4, 4, 4),
+                    'num_downsamplings': 3}
 
         else:
             raise NotImplementedError(f'Core {core_type} not implemented')
