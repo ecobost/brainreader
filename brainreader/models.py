@@ -107,25 +107,17 @@ class SmallNet(nn.Module):
         for in_f, out_f, ks, p in zip([in_channels, *num_features], num_features,
                                       kernel_sizes, padding):
             layers.append(nn.Sequential(nn.Conv2d(in_f, out_f, kernel_size=ks, padding=p, bias=False),
-                          nn.BatchNorm2d(out_f), nn.ELU(inplace=True))) #TODO: check if i can use relu
+                          nn.BatchNorm2d(out_f), nn.ELU(inplace=True)))
         self.layers = nn.ModuleList(layers)
 
-        # Create a gaussian window
-        #TODO: Define how big is the standard deviaton in staticnet given 36 x 64 (for instance if it is 18x18, that means it is twice the size of the image and i should use that here, given the std i would neeed here i can define the size of the mask)
-        gaussian_std = (4, 5)
-
-        utils.bivariate_gaussian()
-
-        # compute size for the gaussian mask
-        from featurevis import ops
-        self.blur = ops.GaussianBlur(5, 5)
-
-        OR
-
-
-        mask = F.bivariate_gaussian(...) # TODO: find the size that matches whatever is in the 5 x5 thing, actual size is unimportant, this should be different on height and width, so std on x and y should be different.
+        # Create a 7x7 gaussian mask 
+        grid_xy = utils.create_grid(7, 7) # 7 x 7 x 2
+        gaussian_kernel = utils.bivariate_gaussian(grid_xy.view(-1, 2), 
+                                                   xy_mean=torch.tensor([[0, 0]]), 
+                                                   xy_std=torch.tensor([[0.42, 0.42]]), 
+                                                   corr_xy=torch.tensor([0]))
+        gaussian_kernel = gaussian_kernel.view(7, 7)
         self.gaussian_kernel = gaussian_mask / gaussian_mask.sum()
-
 
     """
         if use_original:
@@ -144,8 +136,8 @@ class SmallNet(nn.Module):
 
     def forward(self, input_):
         resized = F.interpolate(input_, size=self.resized_img_dims, mode='bilinear',
-                                   align_corners=False)  # align_corners avoids warnings
-        h = torch.cat([l(resized) for l in self.layers], dim=1)
+                                align_corners=False)  # align_corners avoids warnings
+        concat = torch.cat([l(resized) for l in self.layers], dim=1)
 
         # Create laplace pyramid
         parts = [h]
@@ -158,7 +150,7 @@ class SmallNet(nn.Module):
             blurred = F.conv2d(padded, self.gaussian_kernel.repeat(num_channels, 1, 1, 1),
                                groups=num_channels)
 
-            parts.append(output - blurred)
+            parts.append(h - blurred)
         output = torch.cat(parts, dim=1)
 
         return output
@@ -676,13 +668,8 @@ class GaussianAggregator(nn.Module):
             to the intermediate representation to obtain its feature vector.
         """
         # Get coordinates of input in [-1, 1] range
-        device = self._xy_mean.device
-        x = torch.arange(in_width, dtype=torch.float32, device=device) + 0.5
-        y = torch.arange(in_height, dtype=torch.float32, device=device) + 0.5
-        x_coords = 2 * x / in_width - 1
-        y_coords = 2 * y / in_height - 1
-        grid_y, grid_x = torch.meshgrid(y_coords, x_coords)
-        grid_xy = torch.stack([grid_x, grid_y], -1).view(-1, 2)  # in_height*in_widht x 2
+        grid_xy = utils.create_grid(in_height, in_width)
+        grid_xy = grid_xy.view(-1, 2).to(self.xy_mean.device) # in_height*in_widht x 2x 2
 
         # Get pdf
         masks = utils.bivariate_gaussian(grid_xy, self.xy_mean, self.xy_std, self.corr_xy)
