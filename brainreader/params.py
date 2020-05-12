@@ -869,7 +869,7 @@ class ModelParams(dj.Lookup):
             if core_id == 3: # (96, 96)
                 core_kwargs = {
                     'resized_img_dims': (96, 96), 'num_features': (32, 32, 32),
-                    'kernel_sizes': (17, 9, 9), 'padding': (8, 4, 4, 4),
+                    'kernel_sizes': (17, 9, 9), 'padding': (8, 4, 4),
                     'num_downsamplings': 3}
 
         else:
