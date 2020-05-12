@@ -60,7 +60,7 @@ class KonstiNet(nn.Module):
             layers.append(nn.BatchNorm2d(out_f))
             layers.append(nn.ELU(inplace=True) if use_elu else nn.ReLU(inplace=True))
             if use_pooling and i > 0 and i%2 == 0:
-                layers.append(nn.AvgPool2d())
+                layers.append(nn.AvgPool2d(2))
         self.layers = nn.Sequential(*layers)
 
         # Save some params
