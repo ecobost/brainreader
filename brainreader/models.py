@@ -122,7 +122,7 @@ class StaticNet(nn.Module):
 
         # Save some params
         self.resized_img_dims = resized_img_dims
-        self.out_channels = num_features[-1]
+        self.out_channels = sum(num_features) * (num_downsamplings + 1)
         dim_change = 2 * sum(padding) - sum([k - 1 for k in kernel_sizes])
         self.out_height = resized_img_dims[0] + dim_change
         self.out_width = resized_img_dims[1] + dim_change
