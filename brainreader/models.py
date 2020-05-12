@@ -117,7 +117,8 @@ class StaticNet(nn.Module):
                                                    xy_std=torch.tensor([[0.42, 0.42]]),
                                                    corr_xy=torch.tensor([0]))
         gaussian_kernel = gaussian_kernel.view(7, 7)
-        self.gaussian_kernel = gaussian_kernel / gaussian_kernel.sum()
+        gaussian_kernel = gaussian_kernel / gaussian_kernel.sum()
+        self.register_buffer('gaussian_kernel', gaussian_kernel)
 
         # Save some params
         self.resized_img_dims = resized_img_dims

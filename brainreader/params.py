@@ -729,8 +729,8 @@ class ModelParams(dj.Lookup):
                    'agg_id': 1, 'readout_type': 'mlp', 'readout_id': readout_id,
                    'act_type': 'exp', 'act_id': 2}
 
-        # Test KonstiNet (8-19)
-        for i, core_id in enumerate([1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12], start=i + 1):
+        # Test KonstiNet (8-20)
+        for i, core_id in enumerate([1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13], start=i + 1):
             yield {
                 'model_params': i, 'core_type': 'konsti', 'core_id': core_id,
                 'agg_type': 'gaussian', 'agg_id': 1, 'readout_type': 'mlp',
@@ -848,6 +848,10 @@ class ModelParams(dj.Lookup):
                     'num_features': (64, 64, 64, 64),
                     'kernel_sizes': (9, 7, 7, 7), 'padding': (4, 3, 3, 3),
                     'use_pooling': True}
+            if core_id == 13: # deeper version
+                core_kwargs = {'resized_img_dims': (64, 64),
+                               'num_features': (64, 64, 64, 64, 64, 64, 64, 64),
+                               'kernel_sizes': (9, 7, 7, 7, 7, 7, 7, 7), 'padding': (4, 3, 3, 3, 3, 3, 3, 3)}
 
         elif core_type == 'static':
             #TODO: do this properly
