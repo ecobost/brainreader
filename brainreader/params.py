@@ -863,7 +863,7 @@ class ModelParams(dj.Lookup):
                 core_kwargs = {'resized_img_dims': (36, 64),
                                'num_features': (64, 64, 64, 64),
                                'kernel_sizes': (9, 7, 7, 7), 'padding': (0, 3, 3, 3),
-                               'use_extra_conv2': False}
+                               'use_dsconv2': True}
             if core_id == 15:  # deeper version (8 layers) ith normal conv
                 core_kwargs = {
                     'resized_img_dims': (64, 64),

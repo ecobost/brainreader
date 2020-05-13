@@ -42,7 +42,7 @@ class KonstiNet(nn.Module):
     def __init__(self, in_channels=1, resized_img_dims=(36, 64),
                  num_features=(64, 64, 64, 64), kernel_sizes=(9, 7, 7, 7),
                  padding=(0, 3, 3, 3), use_elu=True, use_extra_conv=True,
-                 use_normal_conv=False, use_pooling=False, use_extra_conv2=True):
+                 use_normal_conv=False, use_pooling=False, use_dsconv2=False):
         super().__init__()
 
         # Create the layers
@@ -52,11 +52,16 @@ class KonstiNet(nn.Module):
             if use_normal_conv:
                 layers.append(nn.Conv2d(in_f, out_f, kernel_size=ks, padding=p, bias=False))
             else:
-                if use_extra_conv:
-                    layers.append(nn.Conv2d(in_f, in_f, kernel_size=1, bias=False))
-                layers.append(nn.Conv2d(in_f, in_f, kernel_size=ks, padding=p, groups=in_f,
-                                        bias=False))
-                if use_extra_conv2:
+                if use_dsconv2:
+                    # use conv 1x1 first and 3 x3 later.
+                    layers.append(nn.Conv2d(in_f, out_f, kernel_size=1, bias=False))
+                    layers.append(nn.Conv2d(out_f, out_f, kernel_size=ks, padding=p, 
+                                            groups=out_f, bias=False))
+                else:
+                    if use_extra_conv:
+                        layers.append(nn.Conv2d(in_f, in_f, kernel_size=1, bias=False))
+                    layers.append(nn.Conv2d(in_f, in_f, kernel_size=ks, padding=p, groups=in_f,
+                                            bias=False))
                     layers.append(nn.Conv2d(in_f, out_f, kernel_size=1, bias=False))
             layers.append(nn.BatchNorm2d(out_f))
             layers.append(nn.ELU(inplace=True) if use_elu else nn.ReLU(inplace=True))
