@@ -735,11 +735,18 @@ class ModelParams(dj.Lookup):
                 'model_params': i, 'core_type': 'konsti', 'core_id': core_id,
                 'agg_type': 'gaussian', 'agg_id': 1, 'readout_type': 'mlp',
                 'readout_id': 1, 'act_type': 'exp', 'act_id': 2}
-            
-        # Test staticnet (20-22)
+
+        # Test staticnet (21-23)
         for i, core_id in enumerate([1, 2, 3], start=i + 1):
             yield {
                 'model_params': i, 'core_type': 'static', 'core_id': core_id,
+                'agg_type': 'gaussian', 'agg_id': 1, 'readout_type': 'mlp',
+                'readout_id': 1, 'act_type': 'exp', 'act_id': 2}
+
+        # Test KonstiNet (24-25)
+        for i, core_id in enumerate([14, 15], start=i + 1):
+            yield {
+                'model_params': i, 'core_type': 'konsti', 'core_id': core_id,
                 'agg_type': 'gaussian', 'agg_id': 1, 'readout_type': 'mlp',
                 'readout_id': 1, 'act_type': 'exp', 'act_id': 2}
 
@@ -848,10 +855,22 @@ class ModelParams(dj.Lookup):
                     'num_features': (64, 64, 64, 64),
                     'kernel_sizes': (9, 7, 7, 7), 'padding': (4, 3, 3, 3),
                     'use_pooling': True}
-            if core_id == 13: # deeper version
+            if core_id == 13: # deeper version (8 layers)
                 core_kwargs = {'resized_img_dims': (64, 64),
                                'num_features': (64, 64, 64, 64, 64, 64, 64, 64),
                                'kernel_sizes': (9, 7, 7, 7, 7, 7, 7, 7), 'padding': (4, 3, 3, 3, 3, 3, 3, 3)}
+            if core_id == 14: # ds-conv 2 but with the 1x1 first (right version)
+                core_kwargs = {'resized_img_dims': (36, 64),
+                               'num_features': (64, 64, 64, 64),
+                               'kernel_sizes': (9, 7, 7, 7), 'padding': (0, 3, 3, 3),
+                               'use_extra_conv2': False}
+            if core_id == 15:  # deeper version (8 layers) ith normal conv
+                core_kwargs = {
+                    'resized_img_dims': (64, 64),
+                    'num_features': (64, 64, 64, 64, 64, 64, 64, 64),
+                    'kernel_sizes': (9, 7, 7, 7, 7, 7, 7, 7),
+                    'padding': (4, 3, 3, 3, 3, 3, 3, 3),
+                    'use_normal_conv': True}
 
         elif core_type == 'static':
             #TODO: do this properly
@@ -859,12 +878,12 @@ class ModelParams(dj.Lookup):
             if core_id == 1: # standard staticnet
                 core_kwargs = {'resized_img_dims': (36, 64),
                                'num_features': (32, 32, 32),
-                               'kernel_sizes': (15, 7, 7), 'padding': (0, 3, 3, 3),
+                               'kernel_sizes': (15, 7, 7), 'padding': (0, 3, 3),
                                'num_downsamplings': 5}
             if core_id == 2: # no pyramidal
                 core_kwargs = {
                     'resized_img_dims': (36, 64), 'num_features': (32, 32, 32),
-                    'kernel_sizes': (15, 7, 7), 'padding': (0, 3, 3, 3),
+                    'kernel_sizes': (15, 7, 7), 'padding': (0, 3, 3),
                     'num_downsamplings': 0}
             if core_id == 3: # (96, 96)
                 core_kwargs = {
