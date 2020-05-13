@@ -34,15 +34,16 @@ class KonstiNet(nn.Module):
     
     A 4 layer core with input kernel 9 x 9 (no padding), hidden kernels 7 x 7 and 64 
     feature maps in each layer. Uses a 36 x 64 input, output is 28 x 54 x 64 block. It 
-    uses depthwise separable convolutions in each layer, i.e., instead of a 7 x 7 x 
-    in_features kernel it learns a 7 x 7 and a in_features kernel that get (outer) 
-    multiplied to create the full kernel (or applied one after the other for efficiency). 
-    Uses a batchnorm and elu activation after each convolution.
+    uses linear bottleneck convolutions (a la MobileNetV2) in each layer, i.e., instead of
+    a 7 x 7 x in_features kernel it learns three kernels (1x1 -> depthwise 7 x 7 -> 1x1) 
+    applied without non-linearities in between. Uses a batchnorm and elu activation after 
+    each convolution.
     """
     def __init__(self, in_channels=1, resized_img_dims=(36, 64),
                  num_features=(64, 64, 64, 64), kernel_sizes=(9, 7, 7, 7),
                  padding=(0, 3, 3, 3), use_elu=True, use_extra_conv=True,
-                 use_normal_conv=False, use_pooling=False, use_dsconv2=False):
+                 use_normal_conv=False, use_pooling=False, use_dsconv2=False,
+                 use_nonlinearity_in_conv=False):
         super().__init__()
 
         # Create the layers
@@ -55,13 +56,17 @@ class KonstiNet(nn.Module):
                 if use_dsconv2:
                     # use conv 1x1 first and 3 x3 later.
                     layers.append(nn.Conv2d(in_f, out_f, kernel_size=1, bias=False))
-                    layers.append(nn.Conv2d(out_f, out_f, kernel_size=ks, padding=p, 
+                    layers.append(nn.Conv2d(out_f, out_f, kernel_size=ks, padding=p,
                                             groups=out_f, bias=False))
                 else:
                     if use_extra_conv:
                         layers.append(nn.Conv2d(in_f, in_f, kernel_size=1, bias=False))
+                        if use_nonlinearity_in_conv:
+                            layers.append(nn.ELU(in_place=True))
                     layers.append(nn.Conv2d(in_f, in_f, kernel_size=ks, padding=p, groups=in_f,
                                             bias=False))
+                    if use_nonlinearity_in_conv:
+                        layers.append(nn.ELU(in_place=True))
                     layers.append(nn.Conv2d(in_f, out_f, kernel_size=1, bias=False))
             layers.append(nn.BatchNorm2d(out_f))
             layers.append(nn.ELU(inplace=True) if use_elu else nn.ReLU(inplace=True))

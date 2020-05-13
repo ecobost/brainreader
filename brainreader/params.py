@@ -744,7 +744,7 @@ class ModelParams(dj.Lookup):
                 'readout_id': 1, 'act_type': 'exp', 'act_id': 2}
 
         # Test KonstiNet (24-25)
-        for i, core_id in enumerate([14, 15], start=i + 1):
+        for i, core_id in enumerate([14, 15, 16], start=i + 1):
             yield {
                 'model_params': i, 'core_type': 'konsti', 'core_id': core_id,
                 'agg_type': 'gaussian', 'agg_id': 1, 'readout_type': 'mlp',
@@ -871,6 +871,11 @@ class ModelParams(dj.Lookup):
                     'kernel_sizes': (9, 7, 7, 7, 7, 7, 7, 7),
                     'padding': (4, 3, 3, 3, 3, 3, 3, 3),
                     'use_normal_conv': True}
+            if core_id == 16:  # add relus in between
+                core_kwargs = {'resized_img_dims': (36, 64),
+                               'num_features': (64, 64, 64, 64),
+                               'kernel_sizes': (9, 7, 7, 7), 'padding': (0, 3, 3, 3), 
+                               'use_nonlinearity_in_conv': True}
 
         elif core_type == 'static':
             #TODO: do this properly
