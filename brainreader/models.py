@@ -43,28 +43,31 @@ class KonstiNet(nn.Module):
                  num_features=(64, 64, 64, 64), kernel_sizes=(9, 7, 7, 7),
                  padding=(0, 3, 3, 3), use_elu=True, use_extra_conv=True,
                  use_normal_conv=False, use_pooling=False, use_dsconv2=False,
-                 use_nonlinearity_in_conv=False):
+                 use_nonlinearity_in_conv=False, dilation=None):
         super().__init__()
+        
+        if dilation is None:
+            dilation = (1, ) * len(num_features)
 
         # Create the layers
         layers = []
-        for i, (in_f, out_f, ks, p) in enumerate(zip([in_channels, *num_features], num_features,
-                                      kernel_sizes, padding)):
+        for i, (in_f, out_f, ks, p, d) in enumerate(zip([in_channels, *num_features], num_features,
+                                      kernel_sizes, padding, dilation)):
             if use_normal_conv:
-                layers.append(nn.Conv2d(in_f, out_f, kernel_size=ks, padding=p, bias=False))
+                layers.append(nn.Conv2d(in_f, out_f, kernel_size=ks, padding=p, dilation=d, bias=False))
             else:
                 if use_dsconv2:
                     # use conv 1x1 first and 3 x3 later.
                     layers.append(nn.Conv2d(in_f, out_f, kernel_size=1, bias=False))
-                    layers.append(nn.Conv2d(out_f, out_f, kernel_size=ks, padding=p,
+                    layers.append(nn.Conv2d(out_f, out_f, kernel_size=ks, padding=p, dilation=d,
                                             groups=out_f, bias=False))
                 else:
                     if use_extra_conv:
                         layers.append(nn.Conv2d(in_f, in_f, kernel_size=1, bias=False))
                         if use_nonlinearity_in_conv:
                             layers.append(nn.ELU(inplace=True))
-                    layers.append(nn.Conv2d(in_f, in_f, kernel_size=ks, padding=p, groups=in_f,
-                                            bias=False))
+                    layers.append(nn.Conv2d(in_f, in_f, kernel_size=ks, padding=p, dilation=d, 
+                                            groups=in_f, bias=False))
                     if use_nonlinearity_in_conv:
                         layers.append(nn.ELU(inplace=True))
                     layers.append(nn.Conv2d(in_f, out_f, kernel_size=1, bias=False))
@@ -77,7 +80,7 @@ class KonstiNet(nn.Module):
         # Save some params
         self.resized_img_dims = resized_img_dims
         self.out_channels = num_features[-1]
-        dim_change = 2 * sum(padding) - sum([k-1 for k in kernel_sizes])
+        dim_change = 2 * sum(padding) - sum([(k-1) * d for k, d in zip(kernel_sizes, dilation)])
         self.out_height = resized_img_dims[0] + dim_change
         self.out_width = resized_img_dims[1] + dim_change
 
