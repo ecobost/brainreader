@@ -62,11 +62,11 @@ class KonstiNet(nn.Module):
                     if use_extra_conv:
                         layers.append(nn.Conv2d(in_f, in_f, kernel_size=1, bias=False))
                         if use_nonlinearity_in_conv:
-                            layers.append(nn.ELU(in_place=True))
+                            layers.append(nn.ELU(inplace=True))
                     layers.append(nn.Conv2d(in_f, in_f, kernel_size=ks, padding=p, groups=in_f,
                                             bias=False))
                     if use_nonlinearity_in_conv:
-                        layers.append(nn.ELU(in_place=True))
+                        layers.append(nn.ELU(inplace=True))
                     layers.append(nn.Conv2d(in_f, out_f, kernel_size=1, bias=False))
             layers.append(nn.BatchNorm2d(out_f))
             layers.append(nn.ELU(inplace=True) if use_elu else nn.ReLU(inplace=True))
