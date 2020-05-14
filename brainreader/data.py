@@ -23,7 +23,11 @@ scans = [
     {'animal_id': 23555, 'session': 26, 'scan_idx': 19}, # eye closed for 15 mins
     {'animal_id': 23555, 'session': 26, 'scan_idx': 20},
     {'animal_id': 23656, 'session': 10, 'scan_idx': 20},
-    {'animal_id': 23656, 'session': 10, 'scan_idx': 21}, ]
+    {'animal_id': 23656, 'session': 10, 'scan_idx': 21},
+    {'animal_id': 23605, 'session': 3, 'scan_idx': 11},  # autistic mouse
+    {'animal_id': 23605, 'session': 3, 'scan_idx': 12},  # autistic mouse
+    {'animal_id': 23603, 'session': 5, 'scan_idx': 19},  # control for the autistic mouse
+    ]
 
 
 @schema
@@ -113,8 +117,9 @@ class Scan(dj.Computed):
             stack.Registration & key & {'scan_session': key['session']},
             nfields='COUNT(*)') & {'nfields': (pipe.ScanInfo & key).fetch1('nfields')}
         if len(candidate_stacks) == 0:
-            raise ValueError('Scan {animal_id}-{session}-{scan_idx} has not been fully'
-                             'registered into any stack')
+            msg = ('Scan {animal_id}-{session}-{scan_idx} has not been fully registered '
+                   'into any stack')
+            raise ValueError(msg.format(**key))
         stack_key = candidate_stacks.fetch(order_by='stack_session, stack_idx')[0]
         tuple_['stack_session'] = stack_key['stack_session']
         tuple_['stack_idx'] = stack_key['stack_idx']
@@ -156,9 +161,10 @@ class Scan(dj.Computed):
         # Check that all units have all properties
         props = [unit_ids, xs, unit_types, areas, layers, ms_delays, edge_distances]
         if len(set([len(x) for x in props])) > 1:
-            msg = ('Some units do not have all required info. Check scan has been fully '
-                   'processed and brain and layer assignment has been filled.')
-            raise ValueError(msg)
+            msg = ('Some units in scan {animal_id}-{session}-{scan_idx} do not have all '
+                   'required info. Check scan has been fully processed and area and '
+                   'layer assignment has been filled.')
+            raise ValueError(msg.format(**key))
 
         # Insert units
         units = [{
