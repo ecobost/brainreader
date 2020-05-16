@@ -1,8 +1,7 @@
 """Kubernetes script"""
 # Training initial models
-from brainreader import train
-from brainreader import params
-
+# from brainreader import train
+# from brainreader import params
 
 # train.TrainedModel.populate({'dset_id': 1, 'model_params': 1, 'data_params': 1}, 'training_params <=6',
 #                             reserve_jobs=True) # MSE + none
@@ -126,42 +125,20 @@ from brainreader import params
 #                             'training_params >132 AND training_params <=144',
 #                             reserve_jobs=True)  # weighted poisson
 
-train.TrainedModel.populate({'dset_id': 1, 'data_params': 3}, 'model_params in (29, 30)',
-                            'training_params >72 AND training_params <=84',
-                            reserve_jobs=True)  # konstinets
+# train.TrainedModel.populate({'dset_id': 1, 'data_params': 3}, 'model_params in (29, 30)',
+#                             'training_params >72 AND training_params <=84',
+#                             reserve_jobs=True)  # konstinets
 
-train.TrainedModel.populate({'dset_id': 1, 'data_params': 3, 'training_params': 145},
-                            'model_params in (29, 30)',
-                            reserve_jobs=True)  # konstinets
-
+# train.TrainedModel.populate({'dset_id': 1, 'data_params': 3, 'training_params': 145},
+#                             'model_params in (29, 30)', reserve_jobs=True)  # konstinets
 
 
-# train.TrainedModel.populate({'dset_id': 1, 'model_params': 3 ,'data_params': 1},
-#                             'training_params <=16', reserve_jobs=True) # SGD and Adam
-# train.TrainedModel.populate({'dset_id': 1, 'data_params': 3, 'model_params': 16},
-#                             'training_params > 16 AND training_params < 32', reserve_jobs=True) # poisson
-# train.TrainedModel.populate({'dset_id': 1, 'data_params': 1}, 'model_params > 16',
-#                             'training_params <= 6', reserve_jobs=True) # smaller MLP
-# train.TrainedModel.populate({'dset_id': 1, 'data_params': 1, 'model_params': 19},
-#                             'training_params > 16 AND training_params < 32', reserve_jobs=True)  # smaller MLP + poisson (on SGD)
 
-# train.TrainedModel.populate({'dset_id': 1, 'model_params': 20}, 'data_params in (1, 3)',
-#                             'training_params <= 6', reserve_jobs=True)  # MSE with elu activation (and either data_params1 or 3)
-# train.TrainedModel.populate({'dset_id': 1, 'data_params': 1, 'model_params': 21},
-#                              'training_params > 6 AND training_params <=16', reserve_jobs=True) # no batchnorm anywhere (use ADAM, because SGD diverges, probalby needs slower)
-
-# from brainreader import params
-# train.TrainedModel.populate({'dset_id': 1, 'data_params': 3, 'model_params': 22},
-#                             params.TrainingParams & {'loss_function': 'exp'},
-#                             reserve_jobs=True)
-
-# redo poisson
-# train.TrainedModel.populate({'dset_id': 1, 'data_params': 3, 'model_params': 22},
-#                             params.TrainingParams & {'loss_function': 'poisson', 'momentum': 0.9})
-
-# train.Evaluation.populate(reserve_jobs=True)
-# train.Ensemble.populate(reserve_jobs=True)
-# train.EnsembleEvaluation.populate(reserve_jobs=True)
+from brainreader.encoding import train
+train.TrainedModel.populate('dset_id in (1, 5)')
+train.Evaluation.populate(reserve_jobs=True)
+train.Ensemble.populate(reserve_jobs=True)
+train.EnsembleEvaluation.populate(reserve_jobs=True)
 
 # train MLP
 # from brainreader import decoding
