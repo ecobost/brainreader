@@ -1,6 +1,4 @@
-"""Pytorch models
-Models are conformed of a core and a readout
-"""
+"""Pytorch models"""
 import torch
 from torch import nn
 from torch.nn import functional as F
@@ -31,67 +29,52 @@ def init_bn(modules):
 class KonstiNet(nn.Module):
     """ Core inspired by the one developed by Konstantin Willeke.
     
+    Original is a 4 layer core with input kernel 9 x 9 (no padding), hidden kernels 7 x 7 
+    and 64 feature maps in each layer. Uses a 36 x 64 input, output is 28 x 54 x 64 block.
+    It  uses linear bottleneck convolutions (a la MobileNetV2) in each layer, i.e., 
+    instead of a 7 x 7 x in_features kernel it learns three kernels (1x1 -> depthwise 7x7 
+    -> 1x1) applied without non-linearities in between. Uses a batchnorm and elu 
+    activation after each convolution.
     
-    A 4 layer core with input kernel 9 x 9 (no padding), hidden kernels 7 x 7 and 64 
-    feature maps in each layer. Uses a 36 x 64 input, output is 28 x 54 x 64 block. It 
-    uses linear bottleneck convolutions (a la MobileNetV2) in each layer, i.e., instead of
-    a 7 x 7 x in_features kernel it learns three kernels (1x1 -> depthwise 7 x 7 -> 1x1) 
-    applied without non-linearities in between. Uses a batchnorm and elu activation after 
-    each convolution.
+    We modify it by adding padding in the first conv layer so image dimensions are not 
+    changed after original resizing.
+        
+    Arguments:
+        in_channels (int): Number of channels in the input images.
+        resized_img_dims (tuple or int): Resize the original input to this dimension. If a
+            single number, use the same for height and width.
+        features_per_layer (list): Number of features per layer (also defines number of 
+            layers).
+        kernel_sizes (list): Kernel size for each layer.        
     """
     def __init__(self, in_channels=1, resized_img_dims=(36, 64),
-                 num_features=(64, 64, 64, 64), kernel_sizes=(9, 7, 7, 7),
-                 padding=(0, 3, 3, 3), use_elu=True, use_extra_conv=True,
-                 use_normal_conv=False, use_pooling=False, use_dsconv2=False,
-                 use_nonlinearity_in_conv=False, dilation=None):
+                 features_per_layer=(64, 64, 64, 64), kernel_sizes=(9, 7, 7, 7)):
         super().__init__()
-        
-        if dilation is None:
-            dilation = (1, ) * len(num_features)
 
         # Create the layers
         layers = []
-        for i, (in_f, out_f, ks, p, d) in enumerate(zip([in_channels, *num_features], num_features,
-                                      kernel_sizes, padding, dilation)):
-            if use_normal_conv:
-                layers.append(nn.Conv2d(in_f, out_f, kernel_size=ks, padding=p, dilation=d, bias=False))
-            else:
-                if use_dsconv2:
-                    # use conv 1x1 first and 3 x3 later.
-                    layers.append(nn.Conv2d(in_f, out_f, kernel_size=1, bias=False))
-                    layers.append(nn.Conv2d(out_f, out_f, kernel_size=ks, padding=p, dilation=d,
-                                            groups=out_f, bias=False))
-                else:
-                    if use_extra_conv:
-                        layers.append(nn.Conv2d(in_f, in_f, kernel_size=1, bias=False))
-                        if use_nonlinearity_in_conv:
-                            layers.append(nn.ELU(inplace=True))
-                    layers.append(nn.Conv2d(in_f, in_f, kernel_size=ks, padding=p, dilation=d, 
-                                            groups=in_f, bias=False))
-                    if use_nonlinearity_in_conv:
-                        layers.append(nn.ELU(inplace=True))
-                    layers.append(nn.Conv2d(in_f, out_f, kernel_size=1, bias=False))
-            layers.append(nn.BatchNorm2d(out_f))
-            layers.append(nn.ELU(inplace=True) if use_elu else nn.ReLU(inplace=True))
-            if use_pooling and i > 0 and i%2 == 0:
-                layers.append(nn.AvgPool2d(2))
+        for in_features, out_features, ks in zip([in_channels, *features_per_layer],
+                                                 features_per_layer, kernel_sizes):
+            layers.append(nn.Conv2d(in_features, in_features, kernel_size=1, bias=False))
+            layers.append(nn.Conv2d(in_features, in_features, kernel_size=ks,
+                                    padding=ks // 2, groups=in_features, bias=False))
+            layers.append(nn.Conv2d(in_features, out_features, kernel_size=1, bias=False))
+            layers.append(nn.BatchNorm2d(out_features))
+            layers.append(nn.ELU(inplace=True))
         self.layers = nn.Sequential(*layers)
 
         # Save some params
+        if isinstance(resized_img_dims, int):
+            resized_img_dims = (resized_img_dims, resized_img_dims)
         self.resized_img_dims = resized_img_dims
-        self.out_channels = num_features[-1]
-        dim_change = 2 * sum(padding) - sum([(k-1) * d for k, d in zip(kernel_sizes, dilation)])
-        self.out_height = resized_img_dims[0] + dim_change
-        self.out_width = resized_img_dims[1] + dim_change
-
-        if use_pooling:
-            self.out_height = self.out_height / 2
-            self.out_width = self.out_width / 2
+        self.out_channels = features_per_layer[-1]
+        self.out_height = resized_img_dims[0]
+        self.out_width = resized_img_dims[1]
 
     def forward(self, input_):
-        input_ = F.interpolate(input_, size=self.resized_img_dims, mode='bilinear',
+        resized = F.interpolate(input_, size=self.resized_img_dims, mode='bilinear',
                                align_corners=False)  # align_corners avoids warnings
-        return self.layers(input_)
+        return self.layers(resized)
 
     def init_parameters(self):
         init_conv(m for m in self.layers if isinstance(m, nn.Conv2d))
@@ -110,18 +93,33 @@ class StaticNet(nn.Module):
     feature map plus the features map that result from subtracting the smoothed
     versions from the original are concatenated to produce the final 22 x 50 x 576
     block.
+    
+    Arguments:
+        in_channels (int): Number of channels in the input images.
+        resized_img_dims (tuple or int): Resize the original input to this dimension. If a
+            single number, use the same for height and width.
+        features_per_layer (list): Number of features per layer (also defines number of 
+            layers).
+        kernel_sizes (list): Kernel size for each layer.
+        padding (list): Padding per layer.
+        num_downsamplings (int): Number of downsamplings for the laplacian pyramid.
     """
     def __init__(self, in_channels=1, resized_img_dims=(36, 64),
-                 num_features=(32, 32, 32), kernel_sizes=(15, 7, 7), padding=(0, 3, 3),
-                 num_downsamplings=5):
+                 features_per_layer=(32, 32, 32), kernel_sizes=(15, 7, 7),
+                 padding=(0, 3, 3), num_downsamplings=5):
         super().__init__()
 
         # Create layers
         layers = []
-        for in_f, out_f, ks, p in zip([in_channels, *num_features], num_features,
-                                      kernel_sizes, padding):
-            layers.append(nn.Sequential(nn.Conv2d(in_f, out_f, kernel_size=ks, padding=p, bias=False),
-                          nn.BatchNorm2d(out_f), nn.ELU(inplace=True)))
+        for in_features, out_features, ks, p in zip([in_channels, *features_per_layer],
+                                                    features_per_layer, kernel_sizes,
+                                                    padding):
+            layers.append(
+                nn.Sequential(
+                    nn.Conv2d(in_features, out_features, kernel_size=ks, padding=p,
+                              bias=False), 
+                    nn.BatchNorm2d(out_features),
+                    nn.ELU(inplace=True)))
         self.layers = nn.ModuleList(layers)
 
         # Create a 7x7 gaussian mask
@@ -136,7 +134,7 @@ class StaticNet(nn.Module):
 
         # Save some params
         self.resized_img_dims = resized_img_dims
-        self.out_channels = sum(num_features) * (num_downsamplings + 1)
+        self.out_channels = sum(features_per_layer) * (num_downsamplings + 1)
         dim_change = 2 * sum(padding) - sum([k - 1 for k in kernel_sizes])
         self.out_height = resized_img_dims[0] + dim_change
         self.out_width = resized_img_dims[1] + dim_change
@@ -145,7 +143,7 @@ class StaticNet(nn.Module):
     def forward(self, input_):
         resized = F.interpolate(input_, size=self.resized_img_dims, mode='bilinear',
                                 align_corners=False)  # align_corners avoids warnings
-        parts = []  #TODO: right now because of the padding in the first layer, cna't also add the first layer to the output
+        parts = []
         prev = resized
         for l in self.layers:
             prev = l(prev)
@@ -155,7 +153,7 @@ class StaticNet(nn.Module):
         # Create laplace pyramid
         parts = [hidden]
         blurred = hidden
-        for i in range(self.num_downsamplings):
+        for _ in range(self.num_downsamplings):
             # Blur
             h, w = self.gaussian_kernel.shape
             num_channels = blurred.shape[1]
@@ -178,19 +176,18 @@ class VGG(nn.Module):
 
      Uses 3 x 3 filters, each block has the same number of feature maps and feature maps 
      are downsampled by a factor of 2 after each block (with an average pooling layer).
+     Uses a batcnorm layer and a relu layer after each conv.
 
     Arguments:
         in_channels (int): Number of channels in the input images.
-        resized_img_dims (int): Resize the original input to have 1:1 aspect ratio at this
-            size.
+        resized_img_dims (tuple or int): Resize the original input to this dimension. If a
+            single number, use the same for height and width.
         layers_per_block (list of ints): Number of layers in each block.
         features_per_block (list of ints): Number of feature maps in each block. All
             layers in one block have the same number of feature maps.
-        use_batchnorm (bool): Whether to add a batchnorm layer after every convolution.
     """
-    def __init__(self, in_channels=1, resized_img_dims=128,
-                 layers_per_block=[2, 2, 2, 2, 2],
-                 features_per_block=[32, 64, 96, 128, 160], use_batchnorm=True):
+    def __init__(self, in_channels=1, resized_img_dims=64,
+                 layers_per_block=[3, 3, 3], features_per_block=[64, 64, 64]):
         super().__init__()
 
         # Create the layers
@@ -202,18 +199,19 @@ class VGG(nn.Module):
                 in_features = prev_num_features if j == 0 else num_features
 
                 layers.append(nn.Conv2d(in_features, num_features, 3, padding=1,
-                              bias=not use_batchnorm))
-                if use_batchnorm:
-                    layers.append(nn.BatchNorm2d(num_features))
+                                        bias=False))
+                layers.append(nn.BatchNorm2d(num_features))
                 layers.append(nn.ReLU(inplace=True))
             layers.append(nn.AvgPool2d(2))
         self.layers = nn.Sequential(*layers)
 
         # Save some params
+        if isinstance(resized_img_dims, int):
+            resized_img_dims = (resized_img_dims, resized_img_dims)
         self.resized_img_dims = resized_img_dims
         self.out_channels = features_per_block[-1]
-        self.out_height = resized_img_dims // 2**len(layers_per_block)
-        self.out_width = self.out_height
+        self.out_height = resized_img_dims[0] // 2**len(layers_per_block)
+        self.out_width = resized_img_dims[1] // 2**len(layers_per_block)
 
 
     def forward(self, input_):
@@ -335,9 +333,9 @@ class ResNet(nn.Module):
     paper).
     
     Arguments:
-        resized_img_dims (int): Resize the original input to have 1:1 aspect ratio at this
-            size.
         in_channels (int): Number of channels in the inputs.
+        resized_img_dims (tuple or int): Resize the original input to this dimension. If a
+            single number, use the same for height and width.
         blocks_per_layer (list of ints): Number of building blocks (two or three layers)
             per layer. After each layer we spatially downsample and increase the number of
             feature maps.
@@ -350,8 +348,8 @@ class ResNet(nn.Module):
         bottleneck_factor (float): How much to reduce feature maps in bottleneck layers.
             Ignored if use_bottleneck=False.
     """
-    def __init__(self, in_channels=1, resized_img_dims=128, initial_maps=32,
-                 blocks_per_layer=(2, 2, 2, 2, 2), compression_factor=2,
+    def __init__(self, in_channels=1, resized_img_dims=64, initial_maps=64,
+                 blocks_per_layer=(2, 2, 2), compression_factor=1,
                  use_bottleneck=False, bottleneck_factor=0.25):
         super().__init__()
 
@@ -372,10 +370,12 @@ class ResNet(nn.Module):
         self.blocks = nn.Sequential(*blocks)
 
         # Save some params
+        if isinstance(resized_img_dims, int):
+            resized_img_dims = (resized_img_dims, resized_img_dims)
         self.resized_img_dims = resized_img_dims
         self.out_channels = blocks[-1].out_channels
-        self.out_height = resized_img_dims // 2**(len(blocks_per_layer) - 1)
-        self.out_width = self.out_height
+        self.out_height = resized_img_dims[0] // 2**(len(blocks_per_layer) - 1)
+        self.out_width = resized_img_dims[1] // 2**(len(blocks_per_layer) - 1)
 
     def forward(self, input_):
         resized = F.interpolate(input_, size=self.resized_img_dims, mode='bilinear',
@@ -389,122 +389,11 @@ class ResNet(nn.Module):
         for block in self.blocks:
             block.init_parameters()
 
-
-class DenseBlock(nn.Module):
-    """ A single dense block.
-    
-    Input to each layer is the concatenation (in the channel axes) of the output of every 
-    previous layer (and the input to the block). The output of the block is the 
-    concatenation of the input and feature maps from all layers.
-    
-    Arguments:
-        in_channels (int): Number of channels in the input.
-        growth_rate (int): Number of feature maps to add per layer.
-        num_layers (int): Number of layers in this block.
-    """
-    def __init__(self, in_channels, growth_rate, num_layers):
-        super().__init__()
-        self.out_channels = in_channels + num_layers * growth_rate
-        modules = []
-        for next_in_channels in range(in_channels, self.out_channels, growth_rate):
-            modules.append(
-                nn.Sequential(
-                    nn.BatchNorm2d(next_in_channels),
-                    nn.ReLU(inplace=True),
-                    nn.Conv2d(next_in_channels, growth_rate, 3, padding=1, bias=False)))
-        self.modules_ = nn.ModuleList(modules)
-
-    def forward(self, input_):
-        x = input_
-        for module in self.modules_:
-            x = torch.cat([x, module(x)], dim=1)
-        return x
-
-    def init_parameters(self):
-        init_bn(module[0] for module in self.modules_)
-        init_conv(module[2] for module in self.modules_)
-
-
-class TransitionLayer(nn.Module):
-    """ A transition layer compresses the number of feature maps.
-    
-    This decreases/increases the number of feature maps with a 1x1 conovlution and 
-    downsamples the input spatially with a 2x2 average pooling.
-    
-    Arguments:
-        in_channels (int): Number of channels in the input.
-        compression_factor (float): How much to reduce feature maps.
-    """
-    def __init__(self, in_channels, compression_factor):
-        super().__init__()
-        self.out_channels = int(in_channels * compression_factor)
-        self.layers = nn.Sequential(
-            nn.BatchNorm2d(in_channels),
-            nn.ReLU(inplace=True),
-            nn.Conv2d(in_channels, self.out_channels, 1, bias=False),
-            nn.AvgPool2d(2))
-    def forward(self, input_):
-        return self.layers(input_)
-
-    def init_parameters(self):
-        init_bn([self.layers[0]])
-        init_conv([self.layers[2]])
-
-
-class DenseNet(nn.Module):
-    """ DenseNet-C from Huang et al, 2016.
-    
-    Arguments:
-        in_channels (int): Number of channels in the input images.
-        resized_img_dims (int): Resize the original input to have 1:1 aspect ratio at this
-            size.
-        initial_maps (int): Number of maps in the initial layer.
-        layers_per_block (list of ints): Number of layers in each dense block. Also
-            defines the number of dense blocks in the network.
-        growth_rate (int): Number of feature maps to add per layer.
-        compression_factor (float): Between each pair of dense blocks, the number of
-            feature maps are decreased by this factor, e.g., 0.5 produces half as many.
-    """
-    def __init__(self, in_channels=1, resized_img_dims=128, initial_maps=32,
-                 layers_per_block=(2, 3, 3, 3, 3, 2), growth_rate=32,
-                 compression_factor=0.5):
-        super().__init__()
-
-        # First conv
-        self.conv1 = nn.Conv2d(in_channels, initial_maps, 3, padding=1)
-
-        # Dense blocks and transition layers
-        layers = []
-        layers.append(DenseBlock(initial_maps, growth_rate, layers_per_block[0]))
-        for num_layers in layers_per_block[1:]:
-            layers.append(TransitionLayer(layers[-1].out_channels, compression_factor))
-            layers.append(DenseBlock(layers[-1].out_channels, growth_rate, num_layers))
-        self.layers = nn.Sequential(*layers)
-        self.last_bias = nn.Parameter(torch.zeros(self.layers[-1].out_channels))  # *
-        # * last conv does not have bias or batchnorm afterwards, so I'll add it manually
-
-        # Save some parameters
-        self.resized_img_dims = resized_img_dims
-        self.out_channels = len(self.last_bias)
-        self.out_height = resized_img_dims // 2**(len(layers_per_block) - 1)
-        self.out_width = self.out_height
-
-    def forward(self, input_):
-        resized = F.interpolate(input_, size=self.resized_img_dims, mode='bilinear',
-                                align_corners=False)  # align_corners avoids warnings
-        return self.layers(self.conv1(resized)) + self.last_bias.view(1, -1, 1, 1)
-
-    def init_parameters(self):
-        nn.init.constant_(self.last_bias, 0)
-        for layer in self.layers:
-            layer.init_parameters()
-
-
 class RevNet(nn.Module):
-    #TODO:
+    #TODO: Reversible network, invertible networks
     pass
 
-extractors = {'konsti': KonstiNet, 'static': StaticNet, 'vgg': VGG, 'resnet': ResNet, 'densenet': DenseNet}
+extractors = {'konsti': KonstiNet, 'vgg': VGG, 'resnet': ResNet}
 def build_extractor(type_='vgg', **kwargs):
     """ Build a feature extractor module.
     
@@ -967,17 +856,13 @@ class ExponentialActivation(nn.Module):
     f: R -> R+
     
     Arguments:
-        output_mean (float): Assuming the input is sampled form a N(0, 1) distribution, 
+        output_mean (float): Assuming the input is sampled from a N(0, 1) distribution, 
             the output of this module will be a lognormal distribution with this mean.
-        output_std (float): Assuming the input is sampled form a N(0, 1) distribution, 
+        output_std (float): Assuming the input is sampled from a N(0, 1) distribution, 
             the output of this module will be a lognormal distribution with this std.
     """
     def __init__(self, output_mean=1, output_std=0.2):
         super().__init__()
-
-        self.rescale = output_std > 0 # send output_std -1 to not rescan
-        if not self.rescale:
-            return
 
         # Compute the required mean and std of the input to get the desired output stats
         import math
@@ -986,30 +871,14 @@ class ExponentialActivation(nn.Module):
         self._input_std = math.sqrt(input_var)
 
     def forward(self, input_):
-        if self.rescale:
-            rescaled = input_ * self._input_std + self._input_mean
-            return torch.exp(rescaled).squeeze(-1)
-        else:
-            return torch.exp(input_).squeeze(-1)
+        rescaled = input_ * self._input_std + self._input_mean
+        return torch.exp(rescaled).squeeze(-1)
 
     def init_parameters(self):
         pass
 
 
-class ELUPlusOneActivation(nn.Module):
-    """ Returns elu(x) + 1
-    
-    f: R -> R+
-    """
-    def forward(self, input_):
-        return F.elu(input_.squeeze(-1)) + 1
-
-    def init_parameters(self):
-        pass
-
-
-activations = {'none': NoActivation, 'exp': ExponentialActivation,
-               'elu': ELUPlusOneActivation}
+activations = {'none': NoActivation, 'exp': ExponentialActivation}
 def build_activation(type_='none', **kwargs):
     """ Build a final activation module
     

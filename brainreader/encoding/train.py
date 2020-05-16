@@ -10,11 +10,12 @@ from torch.nn import functional as F
 import numpy as np
 
 from brainreader import data as brdata
-from brainreader import params
-from brainreader import datasets
+from brainreader import params as brparams
+from brainreader.encoding import params
+from brainreader.encoding import datasets
 from brainreader import utils
 
-schema = dj.schema('br_train')
+schema = dj.schema('br_encoding_train')
 dj.config["enable_python_native_blobs"] = True  # allow blob support in dj 0.12
 dj.config['stores'] = {
     'brdata': {'protocol': 'file', 'location': '/mnt/scratch07/ecobost'}, }
@@ -52,7 +53,7 @@ class TrainedModel(dj.Computed):
     definition = """ # a single trained model
     
     -> brdata.Responses
-    -> params.DataParams
+    -> brparams.DataParams
     -> params.ModelParams
     -> params.TrainingParams
     ---
@@ -61,7 +62,6 @@ class TrainedModel(dj.Computed):
     val_losses:     longblob        # validation loss per epoch
     val_corrs:      longblob        # validation correlation per epoch
     lr_history:     longblob        # learning rate per epoch
-    # diverged:       boolean         # whether loss diverged during training
     best_model:     blob@brdata     # state dictionary for the best model
     best_loss:      float           # validation loss for the best model
     best_corr:      float           # validation correlation for the best model
@@ -72,9 +72,9 @@ class TrainedModel(dj.Computed):
     # @property
     # def key_source(self):
     #     """ Restrict to only the models that work well. """
-    #     all_keys = (brdata.Responses * params.DataParams * params.ModelParams *
+    #     all_keys = (brdata.Responses * brparams.DataParams * params.ModelParams *
     #                 params.TrainingParams)
-    #     return all_keys & {'data_params': 1, 'model_params': 2} & 'training_params <= 60'
+    #     return all_keys & {'data_params': 3, 'model_params': 2} & 'training_params <= 60'
 
     @staticmethod
     def _compute_loss(responses, pred_responses, loss_function='mse'):
@@ -86,8 +86,6 @@ class TrainedModel(dj.Computed):
             loss_function (string): What loss function to use:
                 'mse': Mean squared error.
                 'poisson': Poisson loss.
-                'weighted_poisson': Poisson loss where errors at responses==0 are 
-                    downweighted by a factor of 0.5.
         
         Returns:
             loss (float): Value of the loss function for current predictions.
@@ -96,16 +94,6 @@ class TrainedModel(dj.Computed):
             loss = F.mse_loss(pred_responses, responses)
         elif loss_function == 'poisson':
             loss = F.poisson_nll_loss(pred_responses, responses, log_input=False)
-        elif loss_function == 'weighted_poisson':
-            weights = torch.ones_like(responses)
-            weights[responses < 1e-3] = 0.5  # downweight errors where response is zero
-            
-            loss = F.poisson_nll_loss(pred_responses, responses, log_input=False,
-                                      reduction='none')
-            loss = (loss * weights).mean()
-        elif loss_function == 'exp': # nll for an exponential distribution
-            loss = torch.log(pred_responses + 1e-8) + responses / (pred_responses + 1e-8)
-            loss = loss.mean()
         else:
             raise NotImplementedError(f'Loss function {loss_function} not implemented')
 
@@ -123,14 +111,14 @@ class TrainedModel(dj.Computed):
         # Get data
         utils.log('Fetching data')
         dset_id = key['dset_id']
-        train_images = (params.DataParams & key).get_images(dset_id, split='train')
-        train_responses = (params.DataParams & key).get_responses(dset_id, split='train')
+        train_images = (brparams.DataParams & key).get_images(dset_id, split='train')
+        train_responses = (brparams.DataParams & key).get_responses(dset_id, split='train')
         train_dset = datasets.EncodingDataset(train_images, train_responses)
         train_dloader = data.DataLoader(train_dset, batch_size=train_params['batch_size'],
                                         shuffle=True, num_workers=2)
 
-        val_images = (params.DataParams & key).get_images(dset_id, split='val')
-        val_responses = (params.DataParams & key).get_responses(dset_id, split='val')
+        val_images = (brparams.DataParams & key).get_images(dset_id, split='val')
+        val_responses = (brparams.DataParams & key).get_responses(dset_id, split='val')
         val_dset = datasets.EncodingDataset(val_images, val_responses)
         val_dloader = data.DataLoader(val_dset, batch_size=128, num_workers=2)
 
@@ -142,24 +130,10 @@ class TrainedModel(dj.Computed):
         model.train()
         model.cuda()
 
-
-
-        # TODO: DELETE!
-        if train_params['momentum'] < 0:
-            print('Using ADAM')
-            optimizer = optim.Adam(model.parameters(), lr=float(train_params['learning_rate']),
-                              weight_decay=float(train_params['weight_decay']))
-        else:
-            print('USING SGD')
-            optimizer = optim.SGD(model.parameters(), lr=float(train_params['learning_rate']),
-                                momentum=float(train_params['momentum']), nesterov=True,
-                                weight_decay=float(train_params['weight_decay']))
-
-
         # Declare optimizer
-        # optimizer = optim.SGD(model.parameters(), lr=float(train_params['learning_rate']),
-        #                       momentum=float(train_params['momentum']), nesterov=True,
-        #                       weight_decay=float(train_params['weight_decay']))
+        optimizer = optim.SGD(model.parameters(), lr=float(train_params['learning_rate']),
+                              momentum=float(train_params['momentum']), nesterov=True,
+                              weight_decay=float(train_params['weight_decay']))
         scheduler = lr_scheduler.ReduceLROnPlateau(optimizer, mode='max',
                                                    factor=float(train_params['lr_decay']),
                                                    patience=int(round(
@@ -285,7 +259,7 @@ class TrainedModel(dj.Computed):
         """ Load a trained model."""
         # Find num_cells for this dataset (with its data_params)
         dset_id = self.fetch1('dset_id')
-        cell_mask = (params.DataParams & self).get_cell_mask(dset_id)
+        cell_mask = (brparams.DataParams & self).get_cell_mask(dset_id)
         num_cells = np.count_nonzero(cell_mask)
 
         # Get model
@@ -308,8 +282,8 @@ class Evaluation(dj.Computed):
     def make(self, key):
         # Get data
         dset_id = key['dset_id']
-        test_images = (params.DataParams & key).get_images(dset_id, split='test')
-        test_responses = (params.DataParams & key).get_responses(dset_id, split='test')
+        test_images = (brparams.DataParams & key).get_images(dset_id, split='test')
+        test_responses = (brparams.DataParams & key).get_responses(dset_id, split='test')
         test_dset = datasets.EncodingDataset(test_images, test_responses)
         test_dloader = data.DataLoader(test_dset, batch_size=128, num_workers=4)
 
@@ -413,7 +387,7 @@ class EnsembleEvaluation(dj.Computed):
     def make(self, key):
         # Get validation data
         dset_id = (dj.U('dset_id') & (Ensemble.OneModel & key)).fetch1('dset_id')
-        dataparams = params.DataParams & (Ensemble.OneModel & key)
+        dataparams = brparams.DataParams & (Ensemble.OneModel & key)
         val_images = dataparams.get_images(dset_id, split='val')
         val_responses = dataparams.get_responses(dset_id, split='val')
         val_dset = datasets.EncodingDataset(val_images, val_responses)
