@@ -69,12 +69,12 @@ class TrainedModel(dj.Computed):
     training_time:  smallint        # how many minutes it took to train this network
     training_ts=CURRENT_TIMESTAMP: timestamp
     """
-    # @property
-    # def key_source(self):
-    #     """ Restrict to only the models that work well. """
-    #     all_keys = (brdata.Responses * brparams.DataParams * params.ModelParams *
-    #                 params.TrainingParams)
-    #     return all_keys & {'data_params': 3, 'model_params': 2} & 'training_params <= 60'
+    @property
+    def key_source(self):
+        """ Restrict to only the models that work well. """
+        all_keys = (brdata.Responses * brparams.DataParams * params.ModelParams *
+                    params.TrainingParams)
+        return all_keys & {'data_params': 2}# 'model_params': 2}
 
     @staticmethod
     def _compute_loss(responses, pred_responses, loss_function='mse'):
