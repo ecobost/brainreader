@@ -214,7 +214,7 @@ class ModelParams(dj.Lookup):
             args = ['resized_img_dims', 'features_per_layer', 'kernel_sizes']
             core_params = (KonstiParams & self).fetch1()
             core_kwargs = {k: core_params[k] for k in args}
-        if core_type == 'vgg':
+        elif core_type == 'vgg':
             args = ['resized_img_dims', 'layers_per_block', 'features_per_block']
             core_params = (VGGParams & self).fetch1()
             core_kwargs = {k: core_params[k] for k in args}
