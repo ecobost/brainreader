@@ -5,8 +5,8 @@ import itertools
 from brainreader import data
 from brainreader import utils
 
-schema = dj.schema('br_params')
-dj.config["enable_python_native_blobs"] = True # allow blob support in dj 0.12
+schema = dj.schema('br_params_legacy')
+dj.config["enable_python_native_blobs"] = True  # allow blob support in dj 0.12
 
 
 @schema
@@ -18,10 +18,10 @@ class ImageNormalization(dj.Lookup):
     description:        varchar(256)
     """
     contents = [
-        {'img_normalization': 'zscore-train',
-         'description': 'Normalize images using mean and std calculated in the training '
-                        'images'},
-    ]
+        {
+            'img_normalization': 'zscore-train',
+            'description': 'Normalize images using mean and std calculated in the training '
+            'images'}, ]
 
 
 @schema
@@ -68,9 +68,10 @@ class TestImages(dj.Lookup):
     description:    varchar(256)
     """
     contents = [
-        {'test_set': 'repeats',
-         'description': 'Use as test set the images that have been shown more than once'},
-    ]
+        {
+            'test_set': 'repeats',
+            'description': 'Use as test set the images that have been shown more than once'
+        }, ]
 
 
 @schema
@@ -93,7 +94,9 @@ class DataParams(dj.Lookup):
 
     @property
     def contents(self):
-        resp_norms = ['zscore-blanks', 'zscore-resps', 'stddev-blanks', 'df/f', 'df/std(df)', 'stddev-resps']
+        resp_norms = [
+            'zscore-blanks', 'zscore-resps', 'stddev-blanks', 'df/f', 'df/std(df)',
+            'stddev-resps']
         for i, resp_norm in enumerate(resp_norms, start=1):
             yield {
                 'data_params': i, 'test_set': 'repeats', 'split_seed': 1234,
@@ -115,8 +118,8 @@ class DataParams(dj.Lookup):
                 images ordered by (image_class, image_id).
         """
         # Get images
-        images = (data.Image & (data.Scan.Image & {'dset_id': dset_id})).fetch('image',
-                                                                               order_by='image_class, image_id')
+        images = (data.Image & (data.Scan.Image & {'dset_id': dset_id})).fetch(
+            'image', order_by='image_class, image_id')
         images = np.stack(images).astype(np.float32)
 
         # Resize
@@ -156,8 +159,8 @@ class DataParams(dj.Lookup):
         # Get test mask
         test_set = self.fetch1('test_set')
         if test_set == 'repeats':
-            num_repeats = (data.Scan.Image & {'dset_id': dset_id}).fetch('num_repeats',
-                                                                         order_by='image_class, image_id')
+            num_repeats = (data.Scan.Image & {'dset_id': dset_id}).fetch(
+                'num_repeats', order_by='image_class, image_id')
             test_mask = num_repeats > 1
         else:
             raise NotImplementedError(f'Test split {test_set} not implemented')
@@ -315,10 +318,11 @@ class TrainingParams(dj.Lookup):
         # MSE + none; MSE + elu
         lrs = [10, 100]
         for i, (lr, wd) in enumerate(itertools.product(lrs, wds), start=1):
-            yield {'training_params': i, 'seed': seed, 'num_epochs': 200, 'val_epochs': 1,
-                   'batch_size': 32, 'learning_rate': lr, 'momentum': 0.9,
-                   'weight_decay': wd, 'loss_function': loss, 'lr_decay': 0.1,
-                   'decay_epochs': 10, 'stopping_epochs': 50}
+            yield {
+                'training_params': i, 'seed': seed, 'num_epochs': 200, 'val_epochs': 1,
+                'batch_size': 32, 'learning_rate': lr, 'momentum': 0.9,
+                'weight_decay': wd, 'loss_function': loss, 'lr_decay': 0.1,
+                'decay_epochs': 10, 'stopping_epochs': 50}
 
         # MSE + expscale
         lrs = [1, 10]
@@ -350,8 +354,6 @@ class TrainingParams(dj.Lookup):
                 'weight_decay': wd, 'loss_function': loss, 'lr_decay': 0.1,
                 'decay_epochs': 5, 'stopping_epochs': 30}
 
-
-
         loss = 'exp'
 
         # exp + exp; exp + elu
@@ -372,7 +374,6 @@ class TrainingParams(dj.Lookup):
                 'weight_decay': wd, 'loss_function': loss, 'lr_decay': 0.1,
                 'decay_epochs': 5, 'stopping_epochs': 30}
 
-
         ## ADAM loss (momentum = -1)
         loss = 'mse'
 
@@ -381,9 +382,9 @@ class TrainingParams(dj.Lookup):
         for i, (lr, wd) in enumerate(itertools.product(lrs, wds), start=i + 1):
             yield {
                 'training_params': i, 'seed': seed, 'num_epochs': 200, 'val_epochs': 1,
-                'batch_size': 32, 'learning_rate': lr, 'momentum': -1,
-                'weight_decay': wd, 'loss_function': loss, 'lr_decay': 0.1,
-                'decay_epochs': 5, 'stopping_epochs': 30}
+                'batch_size': 32, 'learning_rate': lr, 'momentum': -1, 'weight_decay': wd,
+                'loss_function': loss, 'lr_decay': 0.1, 'decay_epochs': 5,
+                'stopping_epochs': 30}
 
         # mse + elu
         lrs = [0.01, 0.1]
@@ -404,7 +405,6 @@ class TrainingParams(dj.Lookup):
                 'batch_size': 32, 'learning_rate': lr, 'momentum': -1, 'weight_decay': wd,
                 'loss_function': loss, 'lr_decay': 0.1, 'decay_epochs': 5,
                 'stopping_epochs': 30}
-
         # poisson + elu; poisson + expscale
         lrs = [0.01, 0.1]
         for i, (lr, wd) in enumerate(itertools.product(lrs, wds), start=i + 1):
@@ -413,7 +413,6 @@ class TrainingParams(dj.Lookup):
                 'batch_size': 32, 'learning_rate': lr, 'momentum': -1, 'weight_decay': wd,
                 'loss_function': loss, 'lr_decay': 0.1, 'decay_epochs': 5,
                 'stopping_epochs': 30}
-
 
         loss = 'exp'
 
@@ -435,7 +434,6 @@ class TrainingParams(dj.Lookup):
                 'loss_function': loss, 'lr_decay': 0.1, 'decay_epochs': 5,
                 'stopping_epochs': 30}
 
-
         # RETEST the best combos
         loss = 'poisson'
         seed = 7856
@@ -446,9 +444,9 @@ class TrainingParams(dj.Lookup):
         for i, (lr, wd) in enumerate(itertools.product(lrs, wds), start=i + 1):
             yield {
                 'training_params': i, 'seed': seed, 'num_epochs': 200, 'val_epochs': 1,
-                'batch_size': 32, 'learning_rate': lr, 'momentum': 0.9, 'weight_decay': wd,
-                'loss_function': loss, 'lr_decay': 0.1, 'decay_epochs': 5,
-                'stopping_epochs': 30}
+                'batch_size': 32, 'learning_rate': lr, 'momentum': 0.9,
+                'weight_decay': wd, 'loss_function': loss, 'lr_decay': 0.1,
+                'decay_epochs': 5, 'stopping_epochs': 30}
 
         # ADAM
         lrs = [1e-3, 0.01, 0.1]
@@ -459,17 +457,16 @@ class TrainingParams(dj.Lookup):
                 'loss_function': loss, 'lr_decay': 0.1, 'decay_epochs': 5,
                 'stopping_epochs': 30}
 
-
         # Try different batch sizes
         lrs = [1, 10, 100]
         batch_sizes = [16, 64, 128]
-        for i, (lr, wd, bs) in enumerate(itertools.product(lrs, wds, batch_sizes), start=i + 1):
+        for i, (lr, wd, bs) in enumerate(itertools.product(lrs, wds, batch_sizes),
+                                         start=i + 1):
             yield {
                 'training_params': i, 'seed': seed, 'num_epochs': 200, 'val_epochs': 1,
                 'batch_size': bs, 'learning_rate': lr, 'momentum': 0.9,
                 'weight_decay': wd, 'loss_function': loss, 'lr_decay': 0.1,
                 'decay_epochs': 5, 'stopping_epochs': 30}
-
 
         # IMPORTANT
         # # Final selection (use expscaled activation)
@@ -481,7 +478,6 @@ class TrainingParams(dj.Lookup):
         # lrs = [10, 100] # use [1, 10] if using elu activation
         # batch_size 64 # hopefully more stable and similar results
 
-
         # Test weighted loss
         loss = 'weighted_poisson'
         seed = 7856
@@ -492,15 +488,16 @@ class TrainingParams(dj.Lookup):
         for i, (lr, wd) in enumerate(itertools.product(lrs, wds), start=i + 1):
             yield {
                 'training_params': i, 'seed': seed, 'num_epochs': 200, 'val_epochs': 1,
-                'batch_size': 64, 'learning_rate': lr, 'momentum': 0.9, 'weight_decay': wd,
-                'loss_function': loss, 'lr_decay': 0.1, 'decay_epochs': 5,
-                'stopping_epochs': 30}
+                'batch_size': 64, 'learning_rate': lr, 'momentum': 0.9,
+                'weight_decay': wd, 'loss_function': loss, 'lr_decay': 0.1,
+                'decay_epochs': 5, 'stopping_epochs': 30}
 
         # Extra small regularization
-        yield {'training_params': i+1, 'seed': 7856, 'num_epochs': 200, 'val_epochs': 1,
-               'batch_size': 32, 'learning_rate': 10, 'momentum': 0.9,
-               'weight_decay': 1e-8, 'loss_function': 'poisson', 'lr_decay': 0.1,
-               'decay_epochs': 5, 'stopping_epochs': 30}
+        yield {
+            'training_params': i + 1, 'seed': 7856, 'num_epochs': 200, 'val_epochs': 1,
+            'batch_size': 32, 'learning_rate': 10, 'momentum': 0.9, 'weight_decay': 1e-8,
+            'loss_function': 'poisson', 'lr_decay': 0.1, 'decay_epochs': 5,
+            'stopping_epochs': 30}
 
 
 ############################## MODELS ###############################
@@ -542,15 +539,16 @@ class VGGParams(dj.Lookup):
     use_batchnorm:      boolean     # whether to use batchnorm in the architecture
     """
     contents = [
-        {'core_id': 1, 'resized_img_dims': 128, 'layers_per_block': [2, 2, 2, 2, 2],
-         'features_per_block': [32, 64, 96, 128, 160], 'use_batchnorm': True},
+        {
+            'core_id': 1, 'resized_img_dims': 128, 'layers_per_block': [2, 2, 2, 2, 2],
+            'features_per_block': [32, 64, 96, 128, 160], 'use_batchnorm': True},
         # {'core_id': 2, 'resized_img_dims': 128, 'layers_per_block': [2, 2, 2, 2, 2],
         #  'features_per_block': [32, 64, 96, 128, 160], 'use_batchnorm': False},
         # {'core_id': 2, 'resized_img_dims': 128, 'layers_per_block': [1, 1, 1, 1, 1],
         #  'features_per_block': [32, 64, 96, 128, 160], 'use_batchnorm': True},
         # {'core_id': 3, 'resized_img_dims': 128, 'layers_per_block': [2, 2, 2],
         #  'features_per_block': [32, 96, 160], 'use_batchnorm': True},
-        ]
+    ]
 
 
 @schema
@@ -567,9 +565,10 @@ class ResNetParams(dj.Lookup):
     bottleneck_factor=NULL: float       # how much to reduce feature maps in bottleneck (if used)
     """
     contents = [
-        {'core_id': 1, 'resized_img_dims': 128, 'initial_maps': 32,
-         'blocks_per_layer': [1, 2, 2, 2, 2, 2], 'compression_factor': 1.4,
-         'use_bottleneck': False}, ]
+        {
+            'core_id': 1, 'resized_img_dims': 128, 'initial_maps': 32,
+            'blocks_per_layer': [1, 2, 2, 2, 2, 2], 'compression_factor': 1.4,
+            'use_bottleneck': False}, ]
 
 
 @schema
@@ -585,9 +584,11 @@ class DenseNetParams(dj.Lookup):
     compression_factor: float           # how to increase/decrease feature maps in transition layers
     """
     contents = [
-        {'core_id': 1, 'resized_img_dims': 128, 'initial_maps': 32,
-         'layers_per_block': [1, 3, 3, 3, 3, 2], 'growth_rate': 32,
-         'compression_factor': 0.5},  ]
+        {
+            'core_id': 1, 'resized_img_dims': 128, 'initial_maps': 32,
+            'layers_per_block': [1, 3, 3, 3, 3,
+                                 2], 'growth_rate': 32, 'compression_factor': 0.5}, ]
+
 
 # class RevNetParams():
 #     pass
@@ -598,7 +599,8 @@ class AverageAggParams(dj.Lookup):
     definition = """ # takes an average of each feature across spatial dimensions
     agg_id:             smallint    # id for the aggregator
     """
-    contents = [{'agg_id': 1}, ]
+    contents = [
+        {'agg_id': 1}, ]
 
 
 @schema
@@ -606,7 +608,8 @@ class PointAggParams(dj.Lookup):
     definition = """ # samples features at a single spatial position
     agg_id:             smallint    # id for the aggregator
     """
-    contents = [{'agg_id': 1}, ]
+    contents = [
+        {'agg_id': 1}, ]
 
 
 @schema
@@ -619,7 +622,7 @@ class GaussianAggParams(dj.Lookup):
     contents = [
         {'agg_id': 1, 'full_covariance': True},
         #{'agg_id': 2, 'full_covariance': False},
-         ]
+    ]
 
 
 @schema
@@ -627,7 +630,8 @@ class FactorizedAggParams(dj.Lookup):
     definition = """ # samples features with a spatially factorized mask
     agg_id:             smallint    # id for the aggregator
     """
-    contents = [{'agg_id': 1}, ]
+    contents = [
+        {'agg_id': 1}, ]
 
 
 @schema
@@ -635,7 +639,8 @@ class LinearAggParams(dj.Lookup):
     definition = """ # samples features with a full (learned) mask
     agg_id:             smallint    # id for the aggregator
     """
-    contents = [{'agg_id': 1}, ]
+    contents = [
+        {'agg_id': 1}, ]
 
 
 @schema
@@ -658,7 +663,9 @@ class NoActParams(dj.Lookup):
     definition = """ # does not apply any activation to the output of the readout
     act_id:                 smallint
     """
-    contents = [{'act_id': 1}, ]
+    contents = [
+        {'act_id': 1}, ]
+
 
 @schema
 class ExponentialActParams(dj.Lookup):
@@ -668,8 +675,9 @@ class ExponentialActParams(dj.Lookup):
     desired_mean:           float       # assuming input ~ N(0, 1), this will be the mean of the output of this layer
     desired_std:            float       # assuming input ~ N(0, 1), this will be the std of the output of this layer
     """
-    contents = [{'act_id': 1, 'desired_mean': -1, 'desired_std': -1},
-                {'act_id': 2, 'desired_mean': 1, 'desired_std': 0.2}, ]
+    contents = [
+        {'act_id': 1, 'desired_mean': -1, 'desired_std': -1},
+        {'act_id': 2, 'desired_mean': 1, 'desired_std': 0.2}, ]
 
 
 @schema
@@ -719,18 +727,21 @@ class ModelParams(dj.Lookup):
         # Different activations
         acts = [('none', 1), ('exp', 1), ('elu', 1), ('exp', 2)]
         for i, (act, act_id) in enumerate(acts, start=1):
-            yield {'model_params': i, 'core_type': 'vgg', 'core_id': 1, 'agg_type': 'gaussian',
-                   'agg_id': 1, 'readout_type': 'mlp', 'readout_id': 1,
-                   'act_type': act, 'act_id': act_id}
+            yield {
+                'model_params': i, 'core_type': 'vgg', 'core_id': 1,
+                'agg_type': 'gaussian', 'agg_id': 1, 'readout_type': 'mlp',
+                'readout_id': 1, 'act_type': act, 'act_id': act_id}
 
         # Test different MLP readouts: (5, 6, 7)
-        for i, readout_id in enumerate([2, 3, 4], start=i+1):
-            yield {'model_params': i, 'core_type': 'vgg', 'core_id': 1, 'agg_type': 'gaussian',
-                   'agg_id': 1, 'readout_type': 'mlp', 'readout_id': readout_id,
-                   'act_type': 'exp', 'act_id': 2}
+        for i, readout_id in enumerate([2, 3, 4], start=i + 1):
+            yield {
+                'model_params': i, 'core_type': 'vgg', 'core_id': 1,
+                'agg_type': 'gaussian', 'agg_id': 1, 'readout_type': 'mlp',
+                'readout_id': readout_id, 'act_type': 'exp', 'act_id': 2}
 
         # Test KonstiNet (8-20)
-        for i, core_id in enumerate([1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13], start=i + 1):
+        for i, core_id in enumerate([1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13],
+                                    start=i + 1):
             yield {
                 'model_params': i, 'core_type': 'konsti', 'core_id': core_id,
                 'agg_type': 'gaussian', 'agg_id': 1, 'readout_type': 'mlp',
@@ -749,7 +760,6 @@ class ModelParams(dj.Lookup):
                 'model_params': i, 'core_type': 'konsti', 'core_id': core_id,
                 'agg_type': 'gaussian', 'agg_id': 1, 'readout_type': 'mlp',
                 'readout_id': 1, 'act_type': 'exp', 'act_id': 2}
-
 
     def get_model(self, num_cells, in_channels=1, out_channels=1):
         """ Builds a network with the desired modules
@@ -776,146 +786,149 @@ class ModelParams(dj.Lookup):
         # Build core
         core_type = self.fetch1('core_type')
         if core_type == 'vgg':
-            args = ['resized_img_dims', 'layers_per_block', 'features_per_block',
-                    'use_batchnorm']
+            args = [
+                'resized_img_dims', 'layers_per_block', 'features_per_block',
+                'use_batchnorm']
             core_params = (VGGParams & self).fetch1()
             core_kwargs = {k: core_params[k] for k in args}
             core_kwargs['use_batchnorm'] = bool(core_kwargs['use_batchnorm'])
         elif core_type == 'resnet':
-            args = ['resized_img_dims', 'initial_maps', 'blocks_per_layer',
-                    'compression_factor', 'use_bottleneck', 'bottleneck_factor']
+            args = [
+                'resized_img_dims', 'initial_maps', 'blocks_per_layer',
+                'compression_factor', 'use_bottleneck', 'bottleneck_factor']
             core_params = (ResNetParams & self).fetch1()
             core_kwargs = {k: core_params[k] for k in args}
             core_kwargs['use_bottleneck'] = bool(core_kwargs['use_bottleneck'])
         elif core_type == 'densenet':
-            args = ['resized_img_dims', 'initial_maps', 'layers_per_block', 'growth_rate',
-                    'compression_factor']
+            args = [
+                'resized_img_dims', 'initial_maps', 'layers_per_block', 'growth_rate',
+                'compression_factor']
             core_params = (DenseNetParams & self).fetch1()
             core_kwargs = {k: core_params[k] for k in args}
-
 
         elif core_type == 'konsti':
             #TODO: do this properly
             core_id = self.fetch1('core_id')
-            if core_id == 1: # the small one konsti uses
-                core_kwargs = {'resized_img_dims': (36, 64),
-                               'num_features': (64, 64, 64, 64),
-                               'kernel_sizes': (9, 7, 7, 7), 'padding': (0, 3, 3, 3)}
-            if core_id == 2: # same but without extra conv
-                core_kwargs = {'resized_img_dims': (36, 64),
-                               'num_features': (64, 64, 64, 64),
-                               'kernel_sizes': (9, 7, 7, 7), 'padding': (0, 3, 3, 3),
-                               'use_extra_conv': False}
-            if core_id == 3: # same but with reLU
-                core_kwargs = {'resized_img_dims': (36, 64),
-                               'num_features': (64, 64, 64, 64),
-                               'kernel_sizes': (9, 7, 7, 7), 'padding': (0, 3, 3, 3),
-                               'use_elu': False}
-            if core_id == 4: # similar for big resolution
-                core_kwargs = {'resized_img_dims': (128, 128),
-                               'num_features': (64, 64, 64, 64),
-                               'kernel_sizes': (19, 15, 15, 15), 'padding': (9, 7, 7, 7),
-                               'use_elu': False, 'use_extra_conv': False}
-            if core_id == 5: # original but square input (64 x 64)
-                core_kwargs = {'resized_img_dims': (64, 64),
-                               'num_features': (64, 64, 64, 64),
-                               'kernel_sizes': (9, 7, 7, 7), 'padding': (0, 3, 3, 3),
-                               'use_elu': True, 'use_extra_conv': True}
-            if core_id == 6: # original at 72 x 128
-                core_kwargs = {'resized_img_dims': (72, 128),
-                               'num_features': (64, 64, 64, 64),
-                               'kernel_sizes': (17, 13, 13, 13), 'padding': (8, 6, 6, 6),
-                               'use_elu': True, 'use_extra_conv': True}
-            if core_id == 7: # normal convolution rather than ds conv
-                core_kwargs = {'resized_img_dims': (36, 64),
-                               'num_features': (64, 64, 64, 64),
-                               'kernel_sizes': (9, 7, 7, 7), 'padding': (0, 3, 3, 3),
-                               'use_normal_conv': True}
-            if core_id == 8: # 128 x 128 smaller filters
-                core_kwargs = {'resized_img_dims': (128, 128),
-                           'num_features': (64, 64, 64, 64),
-                           'kernel_sizes': (15, 9, 9, 9), 'padding': (7, 4, 4, 4),
-                           'use_elu': True, 'use_extra_conv': True}
-            if core_id == 9: # 96 x 96
-                core_kwargs = {'resized_img_dims': (96, 96),
-                           'num_features': (64, 64, 64, 64),
-                           'kernel_sizes': (11, 7, 7, 7), 'padding': (5, 3, 3, 3),
-                           'use_elu': True, 'use_extra_conv': True}
-            if core_id == 10: # original but with padding in first layer
-                core_kwargs = {'resized_img_dims': (36, 64),
-                               'num_features': (64, 64, 64, 64),
-                               'kernel_sizes': (9, 7, 7, 7), 'padding': (4, 3, 3, 3)}
-            if core_id == 11: # deeper version
-                core_kwargs = {'resized_img_dims': (64, 64),
-                               'num_features': (64, 64, 64, 64, 64, 64),
-                               'kernel_sizes': (9, 7, 7, 7, 7, 7), 'padding': (4, 3, 3, 3, 3, 3)}
-            if core_id == 12:  # add downsampling
+            if core_id == 1:  # the small one konsti uses
+                core_kwargs = {
+                    'resized_img_dims': (36, 64), 'num_features': (64, 64, 64, 64),
+                    'kernel_sizes': (9, 7, 7, 7), 'padding': (0, 3, 3, 3)}
+            if core_id == 2:  # same but without extra conv
+                core_kwargs = {
+                    'resized_img_dims': (36, 64), 'num_features': (64, 64, 64, 64),
+                    'kernel_sizes': (9, 7, 7, 7), 'padding': (0, 3, 3, 3),
+                    'use_extra_conv': False}
+            if core_id == 3:  # same but with reLU
+                core_kwargs = {
+                    'resized_img_dims': (36, 64), 'num_features': (64, 64, 64, 64),
+                    'kernel_sizes': (9, 7, 7, 7), 'padding': (0, 3, 3, 3),
+                    'use_elu': False}
+            if core_id == 4:  # similar for big resolution
+                core_kwargs = {
+                    'resized_img_dims': (128, 128), 'num_features': (64, 64, 64, 64),
+                    'kernel_sizes': (19, 15, 15, 15), 'padding': (9, 7, 7, 7),
+                    'use_elu': False, 'use_extra_conv': False}
+            if core_id == 5:  # original but square input (64 x 64)
+                core_kwargs = {
+                    'resized_img_dims': (64, 64), 'num_features': (64, 64, 64, 64),
+                    'kernel_sizes': (9, 7, 7, 7), 'padding': (0, 3, 3, 3),
+                    'use_elu': True, 'use_extra_conv': True}
+            if core_id == 6:  # original at 72 x 128
+                core_kwargs = {
+                    'resized_img_dims': (72, 128), 'num_features': (64, 64, 64, 64),
+                    'kernel_sizes': (17, 13, 13, 13), 'padding': (8, 6, 6, 6),
+                    'use_elu': True, 'use_extra_conv': True}
+            if core_id == 7:  # normal convolution rather than ds conv
+                core_kwargs = {
+                    'resized_img_dims': (36, 64), 'num_features': (64, 64, 64, 64),
+                    'kernel_sizes': (9, 7, 7, 7), 'padding': (0, 3, 3, 3),
+                    'use_normal_conv': True}
+            if core_id == 8:  # 128 x 128 smaller filters
+                core_kwargs = {
+                    'resized_img_dims': (128, 128), 'num_features': (64, 64, 64, 64),
+                    'kernel_sizes': (15, 9, 9, 9), 'padding': (7, 4, 4, 4),
+                    'use_elu': True, 'use_extra_conv': True}
+            if core_id == 9:  # 96 x 96
+                core_kwargs = {
+                    'resized_img_dims': (96, 96), 'num_features': (64, 64, 64, 64),
+                    'kernel_sizes': (11, 7, 7, 7), 'padding': (5, 3, 3, 3),
+                    'use_elu': True, 'use_extra_conv': True}
+            if core_id == 10:  # original but with padding in first layer
+                core_kwargs = {
+                    'resized_img_dims': (36, 64), 'num_features': (64, 64, 64, 64),
+                    'kernel_sizes': (9, 7, 7, 7), 'padding': (4, 3, 3, 3)}
+            if core_id == 11:  # deeper version
                 core_kwargs = {
                     'resized_img_dims': (64, 64),
-                    'num_features': (64, 64, 64, 64),
+                    'num_features': (64, 64, 64, 64, 64, 64),
+                    'kernel_sizes': (9, 7, 7, 7, 7, 7), 'padding': (4, 3, 3, 3, 3, 3)}
+            if core_id == 12:  # add downsampling
+                core_kwargs = {
+                    'resized_img_dims': (64, 64), 'num_features': (64, 64, 64, 64),
                     'kernel_sizes': (9, 7, 7, 7), 'padding': (4, 3, 3, 3),
                     'use_pooling': True}
-            if core_id == 13: # deeper version (8 layers)
-                core_kwargs = {'resized_img_dims': (64, 64),
-                               'num_features': (64, 64, 64, 64, 64, 64, 64, 64),
-                               'kernel_sizes': (9, 7, 7, 7, 7, 7, 7, 7), 'padding': (4, 3, 3, 3, 3, 3, 3, 3)}
-            if core_id == 14: # ds-conv 2 but with the 1x1 first (right version)
-                core_kwargs = {'resized_img_dims': (36, 64),
-                               'num_features': (64, 64, 64, 64),
-                               'kernel_sizes': (9, 7, 7, 7), 'padding': (0, 3, 3, 3),
-                               'use_dsconv2': True}
+            if core_id == 13:  # deeper version (8 layers)
+                core_kwargs = {
+                    'resized_img_dims': (64, 64),
+                    'num_features': (64, 64, 64, 64, 64, 64, 64, 64),
+                    'kernel_sizes': (9, 7, 7, 7, 7, 7, 7, 7),
+                    'padding': (4, 3, 3, 3, 3, 3, 3, 3)}
+            if core_id == 14:  # ds-conv 2 but with the 1x1 first (right version)
+                core_kwargs = {
+                    'resized_img_dims': (36, 64), 'num_features': (64, 64, 64, 64),
+                    'kernel_sizes': (9, 7, 7, 7), 'padding': (0, 3, 3, 3),
+                    'use_dsconv2': True}
             if core_id == 15:  # deeper version (8 layers) ith normal conv
                 core_kwargs = {
                     'resized_img_dims': (64, 64),
                     'num_features': (64, 64, 64, 64, 64, 64, 64, 64),
                     'kernel_sizes': (9, 7, 7, 7, 7, 7, 7, 7),
-                    'padding': (4, 3, 3, 3, 3, 3, 3, 3),
-                    'use_normal_conv': True}
+                    'padding': (4, 3, 3, 3, 3, 3, 3, 3), 'use_normal_conv': True}
             if core_id == 16:  # add relus in between
-                core_kwargs = {'resized_img_dims': (36, 64),
-                               'num_features': (64, 64, 64, 64),
-                               'kernel_sizes': (9, 7, 7, 7), 'padding': (0, 3, 3, 3),
-                               'use_nonlinearity_in_conv': True}
-            if core_id == 17: # dilation
+                core_kwargs = {
+                    'resized_img_dims': (36, 64), 'num_features': (64, 64, 64, 64),
+                    'kernel_sizes': (9, 7, 7, 7), 'padding': (0, 3, 3, 3),
+                    'use_nonlinearity_in_conv': True}
+            if core_id == 17:  # dilation
                 core_kwargs = {
                     'resized_img_dims': (64, 64),
                     'num_features': (64, 64, 64, 64, 64, 64),
                     'kernel_sizes': (9, 7, 7, 7, 7, 7),
                     'padding': (4, 3, 6, 6, 9, 9),
                     'dilation': (1, 1, 2, 2, 3, 3), }
-            if core_id == 18: # dilation (smaller kernels)
+            if core_id == 18:  # dilation (smaller kernels)
                 core_kwargs = {
                     'resized_img_dims': (64, 64),
                     'num_features': (64, 64, 64, 64, 64, 64),
                     'kernel_sizes': (7, 3, 3, 3, 3, 3),
                     'padding': (3, 1, 2, 2, 3, 3),
                     'dilation': (1, 1, 2, 2, 3, 3), }
-            if core_id == 19: # dilation (al 3x3 kernels)
+            if core_id == 19:  # dilation (al 3x3 kernels)
                 core_kwargs = {
                     'resized_img_dims': (64, 64),
                     'num_features': (64, 64, 64, 64, 64, 64),
                     'kernel_sizes': (3, 3, 3, 3, 3, 3, 3, 3),
                     'padding': (1, 1, 2, 2, 3, 3, 4, 4),
                     'dilation': (1, 1, 2, 2, 3, 3, 4, 4), }
-            if core_id == 20: # simple with increasing number of feature maps
-                core_kwargs = {'resized_img_dims': (36, 64),
-                               'num_features': (32, 64, 96, 128),
-                               'kernel_sizes': (9, 7, 7, 7), 'padding': (0, 3, 3, 3)}
+            if core_id == 20:  # simple with increasing number of feature maps
+                core_kwargs = {
+                    'resized_img_dims': (36, 64), 'num_features': (32, 64, 96, 128),
+                    'kernel_sizes': (9, 7, 7, 7), 'padding': (0, 3, 3, 3)}
 
         elif core_type == 'static':
             #TODO: do this properly
             core_id = self.fetch1('core_id')
-            if core_id == 1: # standard staticnet
-                core_kwargs = {'resized_img_dims': (36, 64),
-                               'num_features': (32, 32, 32),
-                               'kernel_sizes': (15, 7, 7), 'padding': (0, 3, 3),
-                               'num_downsamplings': 5}
-            if core_id == 2: # no pyramidal
+            if core_id == 1:  # standard staticnet
+                core_kwargs = {
+                    'resized_img_dims': (36, 64), 'num_features': (32, 32, 32),
+                    'kernel_sizes': (15, 7, 7), 'padding': (0, 3, 3),
+                    'num_downsamplings': 5}
+            if core_id == 2:  # no pyramidal
                 core_kwargs = {
                     'resized_img_dims': (36, 64), 'num_features': (32, 32, 32),
                     'kernel_sizes': (15, 7, 7), 'padding': (0, 3, 3),
                     'num_downsamplings': 0}
-            if core_id == 3: # (96, 96)
+            if core_id == 3:  # (96, 96)
                 core_kwargs = {
                     'resized_img_dims': (96, 96), 'num_features': (32, 32, 32),
                     'kernel_sizes': (17, 9, 9), 'padding': (8, 4, 4),
@@ -940,7 +953,8 @@ class ModelParams(dj.Lookup):
         readout_type = self.fetch1('readout_type')
         if readout_type == 'mlp':
             hf, ub = (MLPParams & self).fetch1('hidden_features', 'use_batchnorm')
-            num_features = [core.out_channels, *hf, out_channels]  # add input and output channels
+            num_features = [core.out_channels, *hf,
+                            out_channels]  # add input and output channels
             readout_kwargs = {'num_features': num_features, 'use_batchnorm': ub}
         else:
             raise NotImplementedError(f'Readout {readout_type} not implemented.')
@@ -949,7 +963,7 @@ class ModelParams(dj.Lookup):
 
         # Build final activation
         act_type = self.fetch1('act_type')
-        if act_type in ['none', 'elu']: # TODO: drop elu if not used
+        if act_type in ['none', 'elu']:  # TODO: drop elu if not used
             act_kwargs = {}
         elif act_type == 'exp':
             m, s = (ExponentialActParams & self).fetch1('desired_mean', 'desired_std')
@@ -973,6 +987,7 @@ class EnsembleParams(dj.Lookup):
     name:               varchar(16)             # name for this ensemble method
     description:        varchar(256)            # description of the method
     """
-    contents = [{'ensemble_params': 1, 'name': 'seeds',
-                 'description': ('All models with the same config but different '
-                                 'initialization seeds')}]
+    contents = [{
+        'ensemble_params': 1, 'name': 'seeds',
+        'description': ('All models with the same config but different '
+                        'initialization seeds')}]
