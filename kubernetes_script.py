@@ -135,7 +135,7 @@
 
 
 from brainreader.encoding import train
-train.TrainedModel.populate('dset_id in (1, 5)')
+train.TrainedModel.populate('dset_id in (1, 5)', reserve_jobs=True)
 train.Evaluation.populate(reserve_jobs=True)
 train.Ensemble.populate(reserve_jobs=True)
 train.EnsembleEvaluation.populate(reserve_jobs=True)
