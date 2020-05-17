@@ -367,7 +367,7 @@ class Ensemble(dj.Computed):
 
     def get_model(self):
         """ Loads all models in this ensemble and creates an Ensemble model from it."""
-        from brainreader import models
+        from brainreader.encoding import models
 
         # Get models
         models_ = [(TrainedModel & key).get_model() for key in (Ensemble.OneModel & self)]
