@@ -275,6 +275,7 @@ class TrainedModel(dj.Computed):
 @schema
 class Evaluation(dj.Computed):
     definition = """ # evaluate models in test set
+    
     -> TrainedModel
     ---
     test_corr:  float
@@ -307,6 +308,7 @@ class Evaluation(dj.Computed):
 @schema
 class Ensemble(dj.Computed):
     definition = """ # group of models that form an ensemble
+    
     -> TrainedModel.proj(ensemble_dset='dset_id', ensemble_data='data_params', ensemble_model='model_params', ensemble_training='training_params') # one of the models in the ensemble (always the same for the same ensemble params)
     -> params.EnsembleParams
     ---
@@ -379,6 +381,7 @@ class Ensemble(dj.Computed):
 @schema
 class EnsembleEvaluation(dj.Computed):
     definition = """ # evaluate an ensemble of models
+    
     -> Ensemble
     ---
     val_corr:       float
