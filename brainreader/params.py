@@ -261,8 +261,9 @@ class LinearParams(dj.Lookup):
 
     @property
     def contents(self):
-        # no regularization
         dims = [(18, 32), (36, 64), (72, 128), (144, 256)]
+
+        # no regularization
         for i, (h, w) in enumerate(dims, start=1):
             yield {
                 'linear_params': i, 'image_height': h, 'image_width': w, 'l2_weight': 0,
@@ -278,7 +279,8 @@ class LinearParams(dj.Lookup):
 
         # l1 regularized
         l1_weights = 10**np.arange(-2.5, 0.5, 0.5)
-        for i, ((h, w), l1) in enumerate(itertools.product(dims[:2], l1_weights),
+        dims = [(18, 32), (36, 64)] # higher res take too long (~days)
+        for i, ((h, w), l1) in enumerate(itertools.product(dims, l1_weights),
                                          start=i + 1):
             yield {
                 'linear_params': i, 'image_height': h, 'image_width': w, 'l2_weight': 0,
@@ -304,6 +306,7 @@ class LinearParams(dj.Lookup):
             alpha = l1_weight + l2_weight
             l1_ratio = l1_weight / alpha
             model = linear_model.ElasticNet(alpha=alpha, l1_ratio=l1_ratio)
+
         return model
 
 
@@ -367,3 +370,167 @@ class MLPParams(dj.Lookup):
                                   MLPTraining.fetch('mlp_training')), start=1):
             yield {
                 'mlp_params': i, 'mlp_data': d, 'mlp_architecture': a, 'mlp_training': t}
+
+
+@schema
+class GaborSet(dj.Lookup):
+    definition = """ # params to create a gabor filter bank
+    
+    gabor_set:      smallint
+    ---
+    orientations:   blob        # orientations to try (in radians from 0-pi)
+    phases:         blob        # phases to try (in radians from 0-2pi)
+    wavelengths:    blob        # wavelength of the gabor (as a proportion of height)
+    sigmas:         blob        # standard deviation of the gaussian window (i.e., aperture)
+    dxs:            blob        # center of gabor in x (from -0.5 to 0.5)
+    dys:            blob        # center of gabor in y (from -0.5 to 0.5)
+    """
+    @property
+    def contents(self):
+        # Okhi parameters (2256 gabors)
+        orientations = [
+            np.linspace(0, np.pi, 4, endpoint=False),
+            np.linspace(0, np.pi, 4, endpoint=False) + np.pi / 8,
+            np.linspace(0, np.pi, 4, endpoint=False),
+            np.linspace(0, np.pi, 4, endpoint=False) + np.pi / 8]
+        # Okhi does not shift orientations every other wavelet set but it improves recons (see 2.8.1 in Fischer et al., 2007)
+        phases = [
+            [0, np.pi / 2], ] * 4
+        wavelengths = [[1.16], [0.58], [0.26], [0.13]]  # 1 / (np.array([0.02, 0.04, 0.09, 0.18]) * 43)
+        sigmas = [[0.5], [0.25], [0.12], [0.07]]  # approx (they only give "size" in pixels)
+        dys = [[0],
+               np.linspace(-0.5, 0.5, 3),
+               np.linspace(-0.5, 0.5, 5),
+               np.linspace(-0.5, 0.5, 11)]
+        dxs = [[-0.25, 0.25],
+               np.linspace(-0.5, 0.5, int(round(3 * 16 / 9))),
+               np.linspace(-0.5, 0.5, int(round(5 * 16 / 9))),
+               np.linspace(-0.5, 0.5, int(round(11 * 16 / 9)))
+               ]  # more points in x because of the 16:9 ratio
+        yield {
+            'gabor_set': 1, 'orientations': orientations, 'phases': phases,
+            'wavelengths': wavelengths, 'sigmas': sigmas, 'dxs': dxs, 'dys': dys}
+
+        # larger rangev(36992 gabors)
+        orientations = [
+            np.linspace(0, np.pi, 8, endpoint=False),
+            np.linspace(0, np.pi, 8, endpoint=False) + np.pi / 16,
+            np.linspace(0, np.pi, 8, endpoint=False),
+            np.linspace(0, np.pi, 8, endpoint=False) + np.pi / 16,
+            np.linspace(0, np.pi, 8, endpoint=False)]
+        phases = [
+            np.linspace(0, np.pi, 4, endpoint=False), ] * 5
+        wavelengths = [[1], [0.59], [0.35], [0.20],
+                       [0.12]]  # 1 / 1.7 ** np.array([0, 1, 2, 3, 4])
+        sigmas = [[0.45], [0.26], [0.16], [0.09], [0.05]]
+        dys = [
+            np.linspace(-0.5, 0.5, 3),
+            np.linspace(-0.5, 0.5, 4),
+            np.linspace(-0.5, 0.5, 7),
+            np.linspace(-0.5, 0.5, 12),
+            np.linspace(-0.5, 0.5, 21)]
+        dxs = [
+            np.linspace(-0.5, 0.5, int(round(3 * 16 / 9))),
+            np.linspace(-0.5, 0.5, int(round(4 * 16 / 9))),
+            np.linspace(-0.5, 0.5, int(round(7 * 16 / 9))),
+            np.linspace(-0.5, 0.5, int(round(12 * 16 / 9))),
+            np.linspace(-0.5, 0.5, int(round(21 * 16 / 9)))]
+        yield {
+            'gabor_set': 2, 'orientations': orientations, 'phases': phases,
+            'wavelengths': wavelengths, 'sigmas': sigmas, 'dxs': dxs, 'dys': dys}
+
+    def get_gabors(self, height, width):
+        """ Create the Gabor wavelets from this set
+        
+        Arguments:
+            height (int): Height of the gabors
+            width (int): Width of the gabors
+            
+        Returns
+            A (num_gabors x height x width) array with all gabors.
+        """
+        # Fetch params
+        orientations, phases, wavelengths, sigmas, dxs, dys = self.fetch1(
+            'orientations', 'phases', 'wavelengths', 'sigmas', 'dxs', 'dys')
+
+        # Create gabors
+        gabors = []
+        for os, ps, ws, ss, xs, ys in zip(orientations, phases, wavelengths, sigmas, dxs,
+                                          dys):  # iterate over groups
+            for o, p, w, s, x, y in itertools.product(os, ps, ws, ss, xs, ys):
+                gabors.append(utils.create_gabor(height, width, orientation=o, phase=p,
+                                                 wavelength=w, sigma=s, dx=x, dy=y))
+        gabors = np.stack(gabors)
+
+        # Normalize (to get an almost orthogonal set)
+        l2norm = np.sqrt((gabors**2).sum(axis=(-1, -2), keepdims=True))
+        gabors = gabors / l2norm
+
+        return gabors
+
+
+@schema
+class GaborParams(dj.Lookup):
+    definition = """ # parameters for Gabor reconstructions
+    
+    gabor_params:  smallint
+    ---
+    image_height:   smallint        # height of the image to be reconstructed
+    image_width:    smallint        # width of the image to be reconstructed
+    -> GaborSet
+    l2_weight:      float           # weight for the l2 regularization
+    l1_weight:      float           # weight for the l1 regularization
+    """
+
+    @property
+    def contents(self):
+        dims = [(18, 32), (36, 64), (72, 128), (144, 256)]
+        gabor_sets = [1, 2]
+
+        # no regularization
+        for i,((h, w), gs) in enumerate(itertools.product(dims, gabor_sets), start=1):
+            yield {
+                'gabor_params': i, 'image_height': h, 'image_width': w, 'gabor_set': gs,
+                'l2_weight': 0, 'l1_weight': 0}
+
+        # l2 regularized
+        l2_weights = 10**np.arange(3, 7.5, 0.5)
+        for i, ((h, w), gs,
+                l2) in enumerate(itertools.product(dims, gabor_sets, l2_weights),
+                                 start=i + 1):
+            yield {
+                'gabor_params': i, 'image_height': h, 'image_width': w, 'gabor_set': gs,
+                'l2_weight': l2, 'l1_weight': 0}
+
+        # l1 regularized
+        l1_weights = 10**np.arange(-2, 0.5, 0.5)
+        gabor_sets = [1] # bigger gabor set takes too long
+        for i, ((h, w), gs, l1) in enumerate(itertools.product(dims, gabor_sets, l1_weights),
+                                         start=i + 1):
+            yield {
+                'gabor_params': i, 'image_height': h, 'image_width': w, 'gabor_set': gs,
+                'l2_weight': 0, 'l1_weight': l1}
+
+
+    def get_model(self, num_processes=8):
+        """ Pick the right scikit model: Linear, Ridge, Lasso or ElasticNet.
+        
+        Arguments:
+            num_processes (int): Number of processes to use during fitting. Used only for
+                the least squares linear regression (l1_weight=0, l2_weight=0).
+        """
+        from sklearn import linear_model
+
+        l1_weight, l2_weight = self.fetch1('l1_weight', 'l2_weight')
+        if l1_weight == 0 and l2_weight == 0:
+            model = linear_model.LinearRegression(n_jobs=num_processes)
+        elif l1_weight != 0 and l2_weight == 0:
+            model = linear_model.Lasso(alpha=l1_weight, tol=0.01)
+        elif l1_weight == 0 and l2_weight != 0:
+            model = linear_model.Ridge(alpha=l2_weight, random_state=1234)
+        else:
+            alpha = l1_weight + l2_weight
+            l1_ratio = l1_weight / alpha
+            model = linear_model.ElasticNet(alpha=alpha, l1_ratio=l1_ratio)
+
+        return model
