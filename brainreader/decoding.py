@@ -27,7 +27,7 @@ def compute_correlation(images1, images2):
     Returns:
         corr (float): Average correlation across all images.
     """
-    num_images = images1.shape[0]
+    num_images = len(images1)
     corrs = utils.compute_correlation(images1.reshape(num_images, -1),
                                       images2.reshape(num_images, -1))
 
@@ -79,7 +79,7 @@ class LinearModel(dj.Computed):
         # Resize images
         h, w = (params.LinearParams & key).fetch1('image_height', 'image_width')
         train_images = utils.resize(train_images, h, w)
-        train_images = train_images.reshape(train_images.shape[0], -1) # num_samples x num_pixels
+        train_images = train_images.reshape(len(train_images), -1) # num_samples x num_pixels
 
         #TODO: Normalize responses to be zero-centered per cell?
 
@@ -297,8 +297,8 @@ class MLPModel(dj.Computed):
 
         # Resize images
         h, w = (params.MLPData & (params.MLPParams & key)).fetch1('image_height', 'image_width')
-        train_images = utils.resize(train_images, h, w).reshape(train_images.shape[0], -1)
-        val_images = utils.resize(val_images, h, w).reshape(val_images.shape[0], -1)
+        train_images = utils.resize(train_images, h, w).reshape(len(train_images), -1)
+        val_images = utils.resize(val_images, h, w).reshape(len(val_images), -1)
 
         # Make them tensors
         train_images = torch.as_tensor(train_images, dtype=torch.float32)
@@ -556,56 +556,228 @@ class MLPEvaluation(dj.Computed):
 
 #TODO: DeconvolutionNetwork
 
-################################## Okhi decoding ##########################################
-""" Decoding from the nature comms paper. """
-#TODO: I could do dictonary lerning with a fixed dictionary
-#IDEA: or I could create a fake dataset of images where each image is transformed to its gabor weights and then use
-# normal scikit-learn linear_model to learn the mapping. this will work
+################################## Gabor decoding #######################################
+""" Linearly predict weights for a dictionary of gabor filters that are linearly combined 
+to produce the reconstruction. Based on Yoshida et Okhi, 2020. """
 
-# maybe try gradient reconstruction from a gabor bank encoding model: sum of gabors plus relu. is this better than direct decoding?
-# represent the dataset of images as gabor weights and go from gabor weigths to cell responses
-# the one hard part is the relu at the end
+@schema
+class GaborModel(dj.Computed):
+    definition = """ # reconstruct constrained to a gabor wavelet set
+    
+    -> data.Responses
+    -> params.DataParams
+    -> params.GaborParams
+    ---
+    weight:         blob@brdata     # weight matrix (num_gabors x num_cells) of the linear regression
+    bias:           blob@brdata     # bias (num_gabors) of the linear regression
+    train_mse:      float           # average MSE in training set images
+    train_corr:     float           # average correlation in training set images
+    train_feat_mse: float           # average MSE in Gabor features of training images
+    train_feat_corr:float           # average correlation in Gabor features of train images
+    """
+    @property
+    def key_source(self):
+        all_keys = data.Scan * params.DataParams * params.GaborParams.proj()
+        return all_keys & {'data_params': 1} #&(params.GaborParams & {'gabor_set': 1}) & 'gabor_params < 49'
 
-# they don't use that many gabor filters:
+    def make(self, key):
+        # Get training data
+        utils.log('Fetching data')
+        dset_id = key['dset_id']
+        train_images = (params.DataParams & key).get_images(dset_id, split='train')
+        train_responses = (params.DataParams & key).get_responses(dset_id, split='train')
+        min_img_value, max_img_value = train_images.min(), train_images.max()
 
-#TODO: the gabor set will be tied to the size of the image though (or won't?), if so just pick one size (but which one)
-# If possible make the gabors be independet of image size (i.e., all measurements hsould be relative to the height and width)
-# class GaborSet():
-#     definition = """ # create gabors with some params
-#     gabor_id
-#     ---
-#     phase
-#     position
-#     orientations
-#     ...
-#     """
-#     def get_gabors(height, width):
-#         """returns the gabors"""
-#         pass
+        # Resize images
+        h, w = (params.GaborParams & key).fetch1('image_height', 'image_width')
+        train_images = utils.resize(train_images, h, w)
+        train_images = train_images.reshape(len(train_images), -1) # num_samples x num_pixels
 
-# #IDEA: I could just create a fake dataset of images where each image is transformed to its gabor weights and then use
-# # normal scikit-learn to
+        # Change image range to [-1, 1]
+        rescaled_images = ((train_images - min_img_value) /
+                           (max_img_value - min_img_value)) * 2 -1
 
-#TODO: Reorganize this so it agrees with one of the options I have below
+        # Compute gabor features per image
+        gabors = (params.GaborSet & (params.GaborParams & key)).get_gabors(h, w)
+        train_features = rescaled_images.reshape(-1, h * w) @ gabors.reshape(-1, h * w).T
 
-# class OkhiParams:
-#     image size
-#     l2 weight
-#     -> GaborSet
+        # Define model
+        model = (params.GaborParams & key).get_model()
 
-# class OkhiModel():
-#     deinfition = """ train a l2 regularized linar model to predict gabor weights
-#     """
+        # Fit
+        utils.log('Fitting model')
+        model.fit(train_responses, train_features)
 
-# class OkhiReconstruction():
-#     definition = """ # reconstruct with average activity
+        # Evaluate
+        pred_features = model.predict(train_responses)
+        train_feat_mse = ((pred_features - train_features) ** 2).mean()
+        train_feat_corr = utils.compute_correlation(pred_features, train_features).mean()
 
-#     """
+        # Evaluate on images
+        pred_images = (pred_features @ gabors.reshape(-1, h * w))
+        pred_images = ((pred_images + 1) * (max_img_value - min_img_value) / 2 +
+                       min_img_value)
+        train_mse = ((pred_images - train_images) ** 2).mean()
+        train_corr = compute_correlation(pred_images, train_images)
 
-# class OkhiEvaluation():
-#     definition = """
-#     -> OkhiReconstructions
-#     """
+        # Insert
+        utils.log('Inserting results')
+        self.insert1({**key, 'weight': model.coef_, 'bias': model.intercept_,
+                      'train_mse': train_mse, 'train_corr': train_corr,
+                      'train_feat_mse': train_feat_mse,
+                      'train_feat_corr': train_feat_corr})
+
+    def get_model(self):
+        """ Fetch a trained model. """
+        model = (params.GaborParams & self).get_model()
+
+        weight, bias = self.fetch1('weight', 'bias')
+        model.coef_ = weight
+        model.intercept_ = bias
+
+        return model
+
+
+@schema
+class GaborValEvaluation(dj.Computed):
+    definition = """ # evaluation on validation images
+    
+    -> GaborModel
+    ---
+    val_mse:            float       # validation MSE computed at the resolution in DataParams
+    val_corr:           float       # validation correlation computed at the resolution in DataParams
+    resized_val_mse:    float       # validation MSE at the resolution this model was fitted on (GaborParams)
+    resized_val_corr:   float       # validation correlation at the resolution this model was fitted on
+    """
+    def make(self, key):
+        # Get data
+        images = (params.DataParams & key).get_images(key['dset_id'], split='val')
+        responses = (params.DataParams & key).get_responses(key['dset_id'], split='val')
+
+        # Get model
+        model = (GaborModel & key).get_model()
+
+        # Create reconstructions
+        h, w = (params.GaborParams & key).fetch1('image_height', 'image_width')
+        gabors = (params.GaborSet & (params.GaborParams & key)).get_gabors(h, w)
+        pred_features = model.predict(responses)
+        pred_images = (pred_features @ gabors.reshape(-1, h * w)).reshape(-1, h, w)
+
+        # Rescale back to normalized range (so MSE is comparable with previous models)
+        train_images = (params.DataParams & key).get_images(key['dset_id'], split='train')
+        min_img_value, max_img_value = train_images.min(), train_images.max()
+        recons = ((pred_images + 1) * (max_img_value - min_img_value) / 2 + min_img_value)
+
+        # Compute MSE
+        val_mse = ((images - utils.resize(recons, *images.shape[1:])) ** 2).mean()
+        resized_val_mse = ((utils.resize(images, *recons.shape[1:]) - recons) ** 2).mean()
+
+        # Compute correlation
+        val_corr = compute_correlation(images, utils.resize(recons, *images.shape[1:]))
+        resized_val_corr = compute_correlation(utils.resize(images, *recons.shape[1:]),
+                                               recons)
+
+        # Insert
+        self.insert1({**key, 'val_mse': val_mse, 'resized_val_mse': resized_val_mse,
+                      'val_corr': val_corr, 'resized_val_corr': resized_val_corr})
+
+
+@schema
+class GaborReconstructions(dj.Computed):
+    definition = """ # reconstructions for test set images (activity averaged across repeats)
+    
+    -> GaborModel
+    """
+    class Reconstruction(dj.Part):
+        definition = """ # reconstruction for a single image
+        
+        -> master
+        -> data.Scan.Image
+        ---
+        features:         longblob  
+        recons:           longblob
+        """
+
+    def make(self, key):
+        # Get data
+        responses = (params.DataParams & key).get_responses(key['dset_id'], split='test')
+
+        # Get model
+        model = (GaborModel & key).get_model()
+
+        # Create reconstructions
+        h, w = (params.GaborParams & key).fetch1('image_height', 'image_width')
+        gabors = (params.GaborSet & (params.GaborParams & key)).get_gabors(h, w)
+        pred_features = model.predict(responses)
+        pred_images = (pred_features @ gabors.reshape(-1, h * w)).reshape(-1, h, w)
+
+        # Rescale to normalized range (so they are in the same range as previous models)
+        train_images = (params.DataParams & key).get_images(key['dset_id'], split='train')
+        min_img_value, max_img_value = train_images.min(), train_images.max()
+        pred_images = ((pred_images + 1) * (max_img_value - min_img_value) / 2 +
+                       min_img_value)
+
+        # Resize to orginal dimensions (144 x 256)
+        new_h, new_w = (params.DataParams & key).fetch1('image_height', 'image_width')
+        recons = recons.reshape(-1, h, w)
+        recons = utils.resize(recons, new_h, new_w)
+
+        # Find out image ids of test set images
+        image_mask = (params.DataParams & key).get_image_mask(key['dset_id'],
+                                                              split='test')
+        image_classes, image_ids = (data.Scan.Image & key).fetch('image_class',
+                                                                 'image_id',
+                                                                 order_by='image_class, image_id')
+        image_classes = image_classes[image_mask]
+        image_ids = image_ids[image_mask]
+
+        # Insert
+        self.insert1(key)
+        self.Reconstruction.insert([{**key, 'image_class': ic, 'image_id': id_, 'features':f, 'recons': r}
+                                     for ic, id_, r in zip(image_classes, image_ids, pred_features, recons)])
+
+
+@schema
+class GaborEvaluation(dj.Computed):
+    definition = """ # evaluate gabor reconstructions in natural images in test set
+    
+    -> GaborReconstructions
+    ---
+    test_mse:       float       # average MSE across all images
+    test_corr:      float       # average correlation (computed per image and averaged across images)
+    test_pixel_mse: longblob    # pixel-wise MSE (computed per pixel, averaged across images)
+    test_pixel_corr:longblob    # pixel-wise correlation (computed per pixel across images)
+    """
+    def make(self, key):
+        # Get original images
+        images = (params.DataParams & key).get_images(key['dset_id'], split='test')
+
+        # Get reconstructions
+        recons, image_classes = (GaborReconstructions.Reconstruction & key).fetch(
+            'recons', 'image_class', order_by='image_class, image_id')
+        recons = np.stack(recons)
+
+        # Restrict to natural images
+        images = images[image_classes == 'imagenet']
+        recons = recons[image_classes == 'imagenet']
+
+        # Compute MSE
+        mse = ((images - recons) ** 2).mean()
+        pixel_mse = ((images - recons) ** 2).mean(axis=0)
+
+        # Compute corrs
+        corr = compute_correlation(images, recons)
+        pixel_corr = compute_pixelwise_correlation(images, recons)
+
+        # Insert
+        self.insert1({**key, 'test_mse': mse, 'test_corr': corr,
+                      'test_pixel_mse': pixel_mse, 'test_pixel_corr': pixel_corr})
+
+
+
+
+
+#TODO: Evaluate by comparing to the reconstructed image too (i..e, reconstruct the image with the gabor bank and correlate to that)
 
 # class OkhiSingleTrialRecons():
 #     definition = """ # creates a rescontruction for images in test set (per trial)
@@ -640,6 +812,3 @@ class MLPEvaluation(dj.Computed):
 #     """
 #     # this is how they do it in their paper
 #     pass
-
-
-#TODO: Careful with storing all validation reconstructions, they may be too big
