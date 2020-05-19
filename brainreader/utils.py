@@ -70,7 +70,7 @@ def create_grid(height, width):
     y_coords = 2 * y / height - 1
     grid_y, grid_x = torch.meshgrid(y_coords, x_coords)
     grid_xy = torch.stack([grid_x, grid_y], -1)
-    
+
     return grid_xy
 
 
@@ -107,3 +107,60 @@ def bivariate_gaussian(xy, xy_mean, xy_std, corr_xy, normalize=False, eps=1e-8):
         pdf = pdf / (divisor + eps)
 
     return pdf
+
+
+def create_gabor(height, width, orientation, phase, wavelength, sigma, dx=0, dy=0):
+    """Create a Gabor patch.
+    
+    Arguments:
+        height (int): Height of the gabor in pixels.
+        width (int): Width of the gabor in pixels.
+        orientation (float): Orientation of the gabor in radians.
+        phase (float): Phase of the gabor patch in radians.
+        wavelength (float): Wavelength of the gabor expressed as a proportion of height.
+        sigma (float): Standard deviation of the gaussian window expressed as a proportion
+            of height.
+        dx (float): Amount of shifting in x (expressed as a proportion of width)
+            [-0.5, 0.5]. Positive moves the gabor to the right.
+        dy (float): Amount of shifting in y (expressed as a  proportion of height) 
+            [-0.5, 0.5]. Positive moves the gabor down.
+            
+    Returns:
+        A Gabor patch (np.array) with the desired properties.
+        
+    Note:
+        This diverges from the Gabor formulation in https://en.wikipedia.org/wiki/Gabor_filter:
+        * theta is the orientation of the gabor rather than "the orientation of the normal
+            to the parallel stripes" (i.e., theta = wikipedia_theta - pi/2).
+        * rotations are counterclockwise (i.e theta = - wikipedia_theta).
+        * for some dx, dy, the gaussian mask will always be in the same place regardless
+            of orientation.
+        * sigma and wavelength are expressed as proportions of height rather than width.
+    """
+    # Basic checks
+    # orientation = orientation % np.pi # 0-180
+    # phase = phase % (2 * np.pi) # 0-360
+    if wavelength <= 0:
+        raise ValueError('wavelength needs to be positive')
+    if sigma <= 0:
+        raise ValueError('sigma needs to be positive')
+
+    # Create grid
+    y = np.arange(height) + 0.5  # in pixels : 0.5, 1.5, ... w-1.5, w-0.5
+    y = (y - height / 2) / height  # from -0.5 to 0.5
+    x = np.arange(width) + 0.5  # in pixels : 0.5, 1.5, ... h-1.5, h-0.5
+    x = (x - width / 2) / height  # from -(w / 2h) to (w / 2h)
+    yp, xp = np.meshgrid(y, x, indexing='ij')
+
+    # Sample gaussian mask
+    dx = dx * width / height  # re-express as a proportion of height
+    gauss = np.exp(-((xp - dx)**2 + (yp - dy)**2) / (2 * sigma**2))
+
+    # Sample sinusoid
+    x_rot = xp * np.sin(orientation) + yp * np.cos(orientation)
+    sin = np.cos((2 * np.pi / wavelength) * x_rot + phase)
+
+    # Create gabor
+    gabor = gauss * sin
+
+    return gabor
