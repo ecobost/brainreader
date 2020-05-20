@@ -373,61 +373,59 @@ class Responses(dj.Computed):
                 **key, 'image_class': im_class, 'image_id': im_id,
                 'response': image_resps[im_idx], 'blank_response': blank_resps[im_idx]})
 
+@schema
+class ImageSet(dj.Manual):
+    definition = """ # set of images
+    iset_id:    smallint
+    """
 
-#TODO: Uncomment ImageSet when needed, I already tested it (and its functions).
-# @schema
-# class ImageSet(dj.Manual):
-#     definition = """ # set of images
-#     iset_id:    smallint
-#     """
-#
-#     class Image(dj.Part):
-#         definition = """ # one image
-#         -> master
-#         image_class:    varchar(32)   # type of image presented (same as in stimulus.StaticImage)
-#         image_id:       int           # id of this image (same as in stimulus.StaticImage)
-#         """
-#
-#     @staticmethod
-#     def fill():
-#         imagenet = dj.create_virtual_module('imagenet', 'pipeline_imagenet')
-#
-#         # Set some parameters
-#         iset_id = 1 # id for this image set
-#         oracle_class, oracle_collection = 'imagenet', 2 # avoid oracle images from this collection
-#         image_class = 'imagenet_v2_gray' # type of images in this image set
-#
-#         # Find imagenet ids of oracle images (of image_class imagenet and collection 2)
-#         oracle_images = imagenet.Album.Oracle & {'image_class': oracle_class,
-#                                                  'collection_id': oracle_collection}
-#         oracle_ids = dj.U('imagenet_id') & (stimulus.StaticImage.ImageNet & oracle_images)
-#
-#         # Find all remaining image ids
-#         image_ids = (stimulus.StaticImage.ImageNetV2 - oracle_ids).fetch('image_id')
-#
-#         # Insert
-#         ImageSet.insert1({'iset_id': 1})
-#         ImageSet.Image.insert([{'iset_id': 1, 'image_class': image_class, 'image_id': i}
-#                                for i in image_ids])
-#
-#     def get_images(self):
-#         """ Get all images in this image set (ordered by image id).
-#
-#         Arguments:
-#             self: ImageSet instance restricted to a single entry.
-#
-#         Returns:
-#             An array of images (num_images x height x widht).
-#
-#         Warning:
-#             Output array could be
-#         """
-#         if len(self) != 1:
-#             raise ValueError("Expected use: (ImageSet & {'iset_id': 1}).get_images()")
-#
-#         # Get images
-#         images = (stimulus.StaticImage.Image & (ImageSet.Image & self)).fetch('image',
-#                                                                               order_by='image_id')
-#         images = np.stack(images)
-#
-#         return images
+    class Image(dj.Part):
+        definition = """ # one image
+        -> master
+        image_class:    varchar(32)   # type of image presented (same as in stimulus.StaticImage)
+        image_id:       int           # id of this image (same as in stimulus.StaticImage)
+        """
+
+    @staticmethod
+    def fill():
+        imagenet = dj.create_virtual_module('imagenet', 'pipeline_imagenet')
+
+        # Set some parameters
+        iset_id = 1 # id for this image set
+        oracle_class, oracle_collection = 'imagenet', 2 # avoid oracle images from this collection
+        image_class = 'imagenet_v2_gray' # type of images in this image set
+
+        # Find imagenet ids of oracle images (of image_class imagenet and collection 2)
+        oracle_images = imagenet.Album.Oracle & {'image_class': oracle_class,
+                                                 'collection_id': oracle_collection}
+        oracle_ids = dj.U('imagenet_id') & (stimulus.StaticImage.ImageNet & oracle_images)
+
+        # Find all remaining image ids
+        image_ids = (stimulus.StaticImage.ImageNetV2 - oracle_ids).fetch('image_id')
+
+        # Insert
+        ImageSet.insert1({'iset_id': iset_id})
+        ImageSet.Image.insert([{'iset_id': iset_id, 'image_class': image_class, 'image_id': i}
+                               for i in image_ids])
+
+    def get_images(self):
+        """ Get all images in this image set (ordered by image_class, image id).
+
+        Arguments:
+            self: ImageSet instance restricted to a single entry.
+
+        Returns:
+            An array of images (num_images x height x widht) as np.uint8.
+
+        Warning:
+            Output array could be up to 5 GB.
+        """
+        if len(self) != 1:
+            raise ValueError("Expected use: (ImageSet & {'iset_id': 1}).get_images()")
+
+        # Get images
+        images = (stimulus.StaticImage.Image & (ImageSet.Image & self)).fetch('image',
+                                                                              order_by='image_class, image_id')
+        images = np.stack(images)
+
+        return images
