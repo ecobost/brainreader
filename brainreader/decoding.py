@@ -15,41 +15,6 @@ dj.config['stores'] = {
 dj.config['cache'] = '/tmp'
 
 
-#TODO: Move this to utils so I can use them from reconstructions
-def compute_correlation(images1, images2):
-    """ Compute average correlation between two sets of images
-    
-    Computes correlation per image (i.e., across all pixels) and averages over images.
-    
-    Arguments:
-        images1, images2 (np.array): Array (num_images, height x width) with images.
-    
-    Returns:
-        corr (float): Average correlation across all images.
-    """
-    num_images = len(images1)
-    corrs = utils.compute_correlation(images1.reshape(num_images, -1),
-                                      images2.reshape(num_images, -1))
-
-    return corrs.mean()
-
-def compute_pixelwise_correlation(images1, images2):
-    """ Compute correlation per pixel (across all images).
-    
-    Arguments:
-        images1, images2 (np.array): Array (num_images, height x width) with images.
-    
-    Returns:
-        pixel_corrs (np.array): A (height, width) array with the correlations for each 
-            pixel.
-    """
-    num_images, height, width = images1.shape
-    corrs = utils.compute_correlation(images1.reshape(num_images, -1).T,
-                                      images2.reshape(num_images, -1).T)
-
-    return corrs.reshape(height, width)
-
-
 ################################# Linear decoding #######################################
 @schema
 class LinearModel(dj.Computed):
@@ -93,7 +58,7 @@ class LinearModel(dj.Computed):
         # Evaluate
         pred_images = model.predict(train_responses)
         train_mse = ((pred_images - train_images) ** 2).mean()
-        train_corr = compute_correlation(pred_images, train_images)
+        train_corr = utils.compute_imagewise_correlation(pred_images, train_images)
 
         # Insert
         utils.log('Inserting results')
@@ -140,8 +105,8 @@ class LinearValEvaluation(dj.Computed):
         resized_val_mse = ((utils.resize(images, *recons.shape[1:]) - recons) ** 2).mean()
 
         # Compute correlation
-        val_corr = compute_correlation(images, utils.resize(recons, *images.shape[1:]))
-        resized_val_corr = compute_correlation(utils.resize(images, *recons.shape[1:]),
+        val_corr = utils.compute_imagewise_correlation(images, utils.resize(recons, *images.shape[1:]))
+        resized_val_corr = utils.compute_imagewise_correlation(utils.resize(images, *recons.shape[1:]),
                                                recons)
 
         # Insert
@@ -224,8 +189,8 @@ class LinearEvaluation(dj.Computed):
         pixel_mse = ((images - recons) ** 2).mean(axis=0)
 
         # Compute corrs
-        corr = compute_correlation(images, recons)
-        pixel_corr = compute_pixelwise_correlation(images, recons)
+        corr = utils.compute_imagewise_correlation(images, recons)
+        pixel_corr = utils.compute_pixelwise_correlation(images, recons)
 
         # Insert
         self.insert1({**key, 'test_mse': mse, 'test_corr': corr,
@@ -365,8 +330,8 @@ class MLPModel(dj.Computed):
             # Compute validation metrics
             with torch.no_grad():
                 pred_images = model.forward_on_batches(val_responses.cuda())
-            val_corr = compute_correlation(val_images.cpu().numpy(),
-                                           pred_images.cpu().numpy())
+            val_corr = utils.compute_imagewise_correlation(val_images.cpu().numpy(),
+                                                           pred_images.cpu().numpy())
 
             utils.log(f'Train loss (val corr) at epoch {epoch}: {train_loss:.4f} ',
                       f'({val_corr:.4f})')
@@ -392,7 +357,8 @@ class MLPModel(dj.Computed):
             pred_images = best_model(train_responses.cuda())
             best_model.cpu()
         train_mse = ((pred_images.cpu() - train_images)** 2).mean().item()
-        train_corr = compute_correlation(pred_images.cpu().numpy(), train_images.numpy())
+        train_corr = utils.compute_imagewise_correlation(pred_images.cpu().numpy(), 
+                                                         train_images.numpy())
 
         # Insert
         utils.log('Inserting results')
@@ -457,8 +423,8 @@ class MLPValEvaluation(dj.Computed):
         resized_val_mse = ((utils.resize(images, *recons.shape[1:]) - recons)**2).mean()
 
         # Compute correlation
-        val_corr = compute_correlation(images, utils.resize(recons, *images.shape[1:]))
-        resized_val_corr = compute_correlation(utils.resize(images, *recons.shape[1:]),
+        val_corr = utils.compute_imagewise_correlation(images, utils.resize(recons, *images.shape[1:]))
+        resized_val_corr = utils.compute_imagewise_correlation(utils.resize(images, *recons.shape[1:]),
                                                recons)
 
         # Insert
@@ -496,7 +462,8 @@ class MLPReconstructions(dj.Computed):
             recons = recons.cpu().numpy()
 
         # Resize to orginal dimensions (144 x 256)
-        old_h, old_w = (MLPData & (MLPParams & key)).fetch1('image_height', 'image_width')
+        old_h, old_w = (params.MLPData & (params.MLPParams & key)).fetch1('image_height',
+                                                                           'image_width')
         new_h, new_w = (params.DataParams & key).fetch1('image_height', 'image_width')
         recons = recons.reshape(-1, old_h, old_w)
         recons = utils.resize(recons, new_h, new_w)
@@ -546,8 +513,8 @@ class MLPEvaluation(dj.Computed):
         pixel_mse = ((images - recons)**2).mean(axis=0)
 
         # Compute corrs
-        corr = compute_correlation(images, recons)
-        pixel_corr = compute_pixelwise_correlation(images, recons)
+        corr = utils.compute_imagewise_correlation(images, recons)
+        pixel_corr = utils.compute_pixelwise_correlation(images, recons)
 
         # Insert
         self.insert1({
@@ -578,7 +545,7 @@ class GaborModel(dj.Computed):
     @property
     def key_source(self):
         all_keys = data.Scan * params.DataParams * params.GaborParams.proj()
-        return all_keys & {'data_params': 1} #&(params.GaborParams & {'gabor_set': 1}) & 'gabor_params < 49'
+        return all_keys & {'data_params': 1} #&(params.GaborParams & {'gabor_set': 1, 'l1_weight': 0})# & 'gabor_params < 81'
 
     def make(self, key):
         # Get training data
@@ -618,7 +585,7 @@ class GaborModel(dj.Computed):
         pred_images = ((pred_images + 1) * (max_img_value - min_img_value) / 2 +
                        min_img_value)
         train_mse = ((pred_images - train_images) ** 2).mean()
-        train_corr = compute_correlation(pred_images, train_images)
+        train_corr = utils.compute_imagewise_correlation(pred_images, train_images)
 
         # Insert
         utils.log('Inserting results')
@@ -673,8 +640,8 @@ class GaborValEvaluation(dj.Computed):
         resized_val_mse = ((utils.resize(images, *recons.shape[1:]) - recons) ** 2).mean()
 
         # Compute correlation
-        val_corr = compute_correlation(images, utils.resize(recons, *images.shape[1:]))
-        resized_val_corr = compute_correlation(utils.resize(images, *recons.shape[1:]),
+        val_corr = utils.compute_imagewise_correlation(images, utils.resize(recons, *images.shape[1:]))
+        resized_val_corr = utils.compute_imagewise_correlation(utils.resize(images, *recons.shape[1:]),
                                                recons)
 
         # Insert
@@ -714,8 +681,7 @@ class GaborReconstructions(dj.Computed):
         # Rescale to normalized range (so they are in the same range as previous models)
         train_images = (params.DataParams & key).get_images(key['dset_id'], split='train')
         min_img_value, max_img_value = train_images.min(), train_images.max()
-        pred_images = ((pred_images + 1) * (max_img_value - min_img_value) / 2 +
-                       min_img_value)
+        recons = ((pred_images + 1) * (max_img_value - min_img_value) / 2 + min_img_value)
 
         # Resize to orginal dimensions (144 x 256)
         new_h, new_w = (params.DataParams & key).fetch1('image_height', 'image_width')
@@ -733,8 +699,8 @@ class GaborReconstructions(dj.Computed):
 
         # Insert
         self.insert1(key)
-        self.Reconstruction.insert([{**key, 'image_class': ic, 'image_id': id_, 'features':f, 'recons': r}
-                                     for ic, id_, r in zip(image_classes, image_ids, pred_features, recons)])
+        self.Reconstruction.insert([{**key, 'image_class': ic, 'image_id': id_, 'features': f, 'recons': r}
+                                     for ic, id_, f, r in zip(image_classes, image_ids, pred_features, recons)])
 
 
 @schema
@@ -766,8 +732,8 @@ class GaborEvaluation(dj.Computed):
         pixel_mse = ((images - recons) ** 2).mean(axis=0)
 
         # Compute corrs
-        corr = compute_correlation(images, recons)
-        pixel_corr = compute_pixelwise_correlation(images, recons)
+        corr = utils.compute_imagewise_correlation(images, recons)
+        pixel_corr = utils.compute_pixelwise_correlation(images, recons)
 
         # Insert
         self.insert1({**key, 'test_mse': mse, 'test_corr': corr,

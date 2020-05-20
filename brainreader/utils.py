@@ -53,6 +53,42 @@ def compute_correlation(x, y, eps=1e-8):
 
     return corrs
 
+
+def compute_imagewise_correlation(images1, images2):
+    """ Compute average correlation between two sets of images
+    
+    Computes correlation per image (i.e., across all pixels) and averages over images.
+    
+    Arguments:
+        images1, images2 (np.array): Array (num_images, height x width) with images.
+    
+    Returns:
+        corr (float): Average correlation across all images.
+    """
+    num_images = len(images1)
+    corrs = compute_correlation(images1.reshape(num_images, -1),
+                                images2.reshape(num_images, -1))
+
+    return corrs.mean()
+
+
+def compute_pixelwise_correlation(images1, images2):
+    """ Compute correlation per pixel (across all images).
+    
+    Arguments:
+        images1, images2 (np.array): Array (num_images, height x width) with images.
+    
+    Returns:
+        pixel_corrs (np.array): A (height, width) array with the correlations for each 
+            pixel.
+    """
+    num_images, height, width = images1.shape
+    corrs = compute_correlation(images1.reshape(num_images, -1).T, 
+                                images2.reshape(num_images, -1).T)
+
+    return corrs.reshape(height, width)
+
+
 def create_grid(height, width):
     """ Creates a sampling grid (from -1 to 1) of the desired dimensions.
     
