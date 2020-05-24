@@ -411,7 +411,7 @@ class GaborSet(dj.Lookup):
             'gabor_set': 1, 'orientations': orientations, 'phases': phases,
             'wavelengths': wavelengths, 'sigmas': sigmas, 'dxs': dxs, 'dys': dys}
 
-        # larger rangev(36992 gabors)
+        # larger range (36992 gabors)
         orientations = [
             np.linspace(0, np.pi, 8, endpoint=False),
             np.linspace(0, np.pi, 8, endpoint=False) + np.pi / 16,
@@ -534,3 +534,58 @@ class GaborParams(dj.Lookup):
             model = linear_model.ElasticNet(alpha=alpha, l1_ratio=l1_ratio)
 
         return model
+
+@schema
+class AHPParams(dj.Lookup):
+    definition = """ # params for average high posterior reconstructions
+    
+    ahp_params:     smallint
+    ---
+    num_samples:    smallint    # number of images to average for the reconstruction
+    similarity:     varchar(16) # similarity measure to use between target and model responses
+    weight_samples: boolean     # whether to weight each image by the similarity of 
+    """
+
+    @property
+    def contents(self):
+        num_images = [1, 5, 10, 50, 100]
+        similarity = ['correlation', 'poisson_loglik']
+        weight_images = [False, True]
+
+        # for num_images 1 weight_images False and True are the same thing
+        for i, s in enumerate(similarity, start=1):
+            yield {
+                'ahp_params': i, 'num_samples': 1, 'similarity': s,
+                'weight_samples': False}
+
+        # for num_images 1 weight_images False and True are the same thing
+        for i, (ni, s, w) in enumerate(itertools.product(num_images[1:], similarity, weight_images),
+                                       start=i + 1):
+            yield {
+                'ahp_params': i, 'num_samples': ni, 'similarity': s, 'weight_samples': w}
+
+
+class GradientParams:#(dj.Lookup):
+    definition = """ # params for gradient based reconstruction
+    
+    gradient_params:    smallint
+    ---
+    initial_std:        float       # std of the initial image
+    num_iterations:     smallint    # number of iterations for the optimization
+    step_size:          float       # step size for the optimization
+    similarity:         varchar(8)  # how to measure similarity between target responses and model responses
+    jitter:             float       # (pixels) amount of jittering to apply every iteration
+    gradient_sigma:     float       # (pixels) blur the gradient using a gaussian window with this sigma
+    l2_weight:          float       # weight for the l2-norm regularization used during optimization
+    """
+    @property
+    def contents(self):
+        step_size = [1, 10, 100, 1000]
+        similarities = ['negeuclidean', 'cosine', 'poisson_lik']
+        jitter = [0, 1, 3, 5, 7]
+        gradient_sigma = [0, 1, 3, 5]
+        l2_weight = [0, 1e-4]
+        for i, (s, j, g, l) in enumerate(itertools.product(step_size, jitter, gradient_sigma, 
+                                                           l2_weight), start=1):
+            yield {'gradient_params': i, 'initial_std': 0.1, 'num_iterations': 1000, 
+                   'step_size': s, 'jitter': j, 'gradient_sigma': g, 'l2_weight': l}
