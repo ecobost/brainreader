@@ -740,9 +740,6 @@ class GaborEvaluation(dj.Computed):
                       'test_pixel_mse': pixel_mse, 'test_pixel_corr': pixel_corr})
 
 
-
-
-
 #TODO: Evaluate by comparing to the reconstructed image too (i..e, reconstruct the image with the gabor bank and correlate to that)
 
 # class OkhiSingleTrialRecons():
