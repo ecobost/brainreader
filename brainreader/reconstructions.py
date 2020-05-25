@@ -164,13 +164,13 @@ class AHPValEvaluation(dj.Computed):
         best_indices = np.argsort(similarity_matrix, axis=-1)[:, -num_samples:]
 
         # Create weights
-        weight_samples = (params.AHPParams & key).fetch1('weight_samples')
+        weight_samples = bool((params.AHPParams & key).fetch1('weight_samples'))
         if weight_samples:
             best_weights = np.stack([
                 s[idx] for s, idx in zip(similarity_matrix, best_indices)])
             norm_weights = best_weights / best_weights.sum(axis=-1, keepdims=True)
         else:
-            norm_weights = np.ones(best_indices.shape)
+            norm_weights = np.full(best_indices.shape, 1 / best_indices.shape[-1])
 
         # Create recons
         recons = np.stack([(all_images[idx] * ws[:, None, None]).sum(axis=0)
@@ -196,7 +196,7 @@ class AHPReconstructions(dj.Computed):
         definition = """ # reconstruction for a single image
         
         -> master
-        -> data.Scan.Image
+        -> data.Scan.Image.proj(ensemble_dset='dset_id')
         ---
         recons:             longblob
         """
@@ -205,11 +205,16 @@ class AHPReconstructions(dj.Computed):
         definition = """ # all the sample images used to create a single image reconstruction
         
         -> master
-        -> data.Scan.Image      # reconstructed image
-        -> data.ImageSet.Image.proj(recon_class='image_class', recond_id='image_id')  # sample image
+        -> data.Scan.Image.proj(ensemble_dset='dset_id')    # reconstructed image
+        -> data.ImageSet.Image.proj(sample_class='image_class', sample_id='image_id')  # sample image
         ---
         weight:         float       # weight 
         """
+
+    @property
+    def key_source(self):
+        # retrict to using simple averaging of images (results on par with weighted average)
+        return ModelResponses * params.AHPParams & {'weight_samples': False}
 
     def make(self, key):
         # Get data to reconstruct
@@ -251,27 +256,29 @@ class AHPReconstructions(dj.Computed):
         best_ids = all_ids[best_indices]
 
         # Create weights
-        weight_samples = (params.AHPParams & key).fetch1('weight_samples')
+        weight_samples = bool((params.AHPParams & key).fetch1('weight_samples'))
         best_weights = np.stack([
             s[idx] for s, idx in zip(similarity_matrix, best_indices)])
         if weight_samples:
             norm_weights = best_weights / best_weights.sum(axis=-1, keepdims=True)
         else:
-            norm_weights = np.ones_like(best_weights)
+            norm_weights = np.full_like(best_weights, 1 / best_weights.shape[-1])
 
         # Create recons
         recons = np.stack([(all_images[idx] * ws[:, None, None]).sum(axis=0)
                            for idx, ws in zip(best_indices, norm_weights)])
 
         # Find out image ids of test set images
-        image_mask = (params.DataParams & key).get_image_mask(key['dset_id'],
-                                                              split='test')
-        image_classes, image_ids = (data.Scan.Image & key).fetch(
-            'image_class', 'image_id', order_by='image_class, image_id')
+        image_mask = dataparams.get_image_mask(key['ensemble_dset'], split='test')
+        image_classes, image_ids = (data.Scan.Image &
+                                    {'dset_id': key['ensemble_dset']}).fetch(
+                                        'image_class', 'image_id',
+                                        order_by='image_class, image_id')
         image_classes = image_classes[image_mask]
         image_ids = image_ids[image_mask]
 
         # Insert
+        utils.log('Inserting reconstructions')
         self.insert1(key)
         self.Reconstruction.insert(
             [{**key, 'image_class': ic, 'image_id': id_, 'recons': r}
@@ -280,9 +287,9 @@ class AHPReconstructions(dj.Computed):
                                                              best_classes, best_ids,
                                                              best_weights):
             self.ReconstructionParts.insert([{
-                **key, 'image_class': ic, 'image_id': iid, 'recon_class': ric,
-                'recon_id': rid,
-                'weight': w} for ric, rid, w in zip(best_class, best_id, best_weight)])
+                **key, 'image_class': ic, 'image_id': iid, 'sample_class': sic,
+                'sample_id': sid,
+                'weight': w} for sic, sid, w in zip(best_class, best_id, best_weight)])
 
 
 @schema
@@ -299,7 +306,8 @@ class AHPEvaluation(dj.Computed):
 
     def make(self, key):
         # Get original images
-        images = (params.DataParams & key).get_images(key['ensemble_dset'], split='test')
+        images = (params.DataParams & {'data_params': key['ensemble_data']}).get_images(
+            key['ensemble_dset'], split='test')
 
         # Get reconstructions
         recons, image_classes = (AHPReconstructions.Reconstruction & key).fetch(
@@ -327,93 +335,134 @@ class AHPEvaluation(dj.Computed):
 ################################ GRADIENT BASED #########################################
 """ Gradient decoding """
 
-#TODO: SEt up all tables including ModelRconstruction and VAE+Gradient
+def fill_single_recons():
+    """Helper function to fill reconstructions for all validation images and all params"""
 
-# class ModelReconstruction():
-#     pass
+    # Fetch all image ids in the validation set
+
+    # Call populate
+    # TODO: Maybe receive a restr that cna be send to the populate,
+    pass
+
+
+def fill_single_recons(split='val', restr={}):
+    """Helper function to fill reconstructions for all validation images and all params"""
+
+    # Fetch all image ids in the validation set
+
+    # Call populate
+    pass
+
+def fill_val_recons():
+    pass
+
+def fill_test_recons(params):
+    # same but estricting the table to the right params
+    #TODO: Maybe I can have a general funciton above that this functions call.
+    pass
+
+
+# Create val_recons, test_recons and use a general fill_recons function.
+
+#option 3:
+
+class GradientOneRecons():
+    definition = """ # reconstruct one image 
+    
+    -> train.Ensemble
+    -> params. GradientParams
+    -> OneImage
+    """
+    @property
+    def key_source(self, key):
+        #TODO: A way to limit this to images of that dataset adn maybe also to validation/test images
+        pass
+
+    def fill_val_recons():
+        pass
+
+    def fill_test_recons():
+        pass
+
+class GradientValReconstructions():
+    definition = """ 
+    -> train.Ensemble
+    -> params.GradientParams
+    """
+    class OneImage():
+        definition = """ # one image in this set
+        -> master
+        one_image
+        """
+    def make():
+        # Fetch alm image ids, check that all the validation images are populated and create that set.
+        #print a warning otherwise.
+        pass
+
+class GradientValEvaluation():
+    definition = """
+    -> GradientValReconstructions
+    ---
+    ... # normal validation stuff
+    ...
+    """
+    pass
+
+class GradientReconstructions():
+    pass
+
+class GradientEvaluation():
+    pass
+
+
+
+#TODO: Single trial
+class GradientSingleTrialOneRecons():
+    definition = """
+    -> train.Ensemble
+    -> GradientParams
+    -> image_id
+    """
+    class OneTrial():
+        definiiton = """
+        -> master
+        trial_idx
+        ---
+        one_recon
+        """
+    #TODO: Limit to only the best nmodel
+    # use dataparams with repeats False
+    pass
+class GradientSingleTrialRecons():
+    pass
+class GradientSingleTrialEval():
+    pass
+
+# TODO: Model responses
+
+class GradientModelRecons():
+    pass
 #     # reconstruct based on model responses (this is just to get a upper bound of how good the reconstruction can be)
 #     # use model responser as a normalization to report result MSE(neural) / MSE(model) (will gie me a 0-1 range)
+class GradientModelEval():
+    pass
 
-# class SingleTrialReconstruction():
-#     use Data Params with repears=False
-#     pass
 
-# class BlankReconstructions():
+#TODO: Repeat the same as above but with VAE on top
+class GradientVAEOneRecons():
+    pass
+class GradientVAEValReconstructions:
+    pass
+class GradientVAEValEvaluation():
+    pass
+class GradientVAEReconstructions():
+    pass
+class GradientVAEEvaluation():
+    pass
+
+
+
+
+# TODO: class BlankReconstructions():
 #   # maybe add a parameter in dataParams.get_reponses that is blank=False, so it fetches the blank responses
 #   # rather than the actual responses (but process them the same).
-#
-"""    
-#TODO: Decide whether I like option 3 or 4 here.
-
-
-
-# option 1: (like LinearValEvaluation)
-# reconstruct all images and evaluate in the same swope (does not save the reconstructions)
-class Evaluation
-    ->dset_id
-    ---
-    # reconstruct and evaluate in the same make
-    
-# option 2: like LinearReconstruction
-# all reconstructions in the same step but it also saves them in the intermediate table
-class Reconstructions
-    -> dset
-    # optionally add a set here if I wanna have the same table for both
-    class OneImage
-        ->dset
-        -> imageid
-        ---
-        recons
-
-class Evaluation
-    -> Reconstructions
-    # have to check that the image_ids in OneImage agree witht the ones in cell_mask
-
-
-# option 3: like 
-# reconstructions are done image by image and stored
-class OneImageReconstruction
-    -> image_id
-    ---
-     recons
-
-class Reconstructions
-    -> dset_id
-    class OneImage
-        ->dset_id
-        -> image_id
-    # check that all the images for this set (be it validation or test) are here
-
-class Evaluation
-    -> Reconstructions
-    
-# option 4:
-# have a single OneImageReconstruction table that does the reconstructions from test set and validation set images rather than a different and lump them together in te ReconstructionSet table.
-# - it mixes validation evaluations with test set evaluations: will have 30 validations with the same set and one test (all the tested validation models plus the final model)
-class OneImageReconstruction
-    dset_id
-    image_id
-    has all reconstructions (from test set and validation set)
-    #TODO: how do I restrict this to only populate test and validation
-    #TODO: Reconsider having a table that record for each image in dset id for any specific data params where it comes from  
-
-class SetId(lookup):
-    set: varchar(8)
-    {'set': 'val', 'set': 'test'}
-
-class Reconstructions():
-    dset_id
-    set_id
-    class OneImage
-    
-    def make():
-        just create a set as desired by set_id
-        # also restrict to only stuff in image_class='imaenet
-
-class Evaluation
-    -> Reconstructions
-    # restrict to only those in the set (maybe fetch all )
-    
-# Single Trial wll be like option 3 (or 4) but each OneImageRecons will have a part table with the  trials, i.e., the reconstructions will be done per chunks of 10 (or 40) trials in a single make.
-
-"""

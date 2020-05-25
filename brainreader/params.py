@@ -548,7 +548,7 @@ class AHPParams(dj.Lookup):
 
     @property
     def contents(self):
-        num_images = [1, 5, 10, 50, 100]
+        num_images = [1, 3, 10, 32, 100, 316]
         similarity = ['correlation', 'poisson_loglik']
         weight_images = [False, True]
 
