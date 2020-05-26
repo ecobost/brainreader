@@ -36,45 +36,50 @@ class KonstiNet(nn.Module):
     -> 1x1) applied without non-linearities in between. Uses a batchnorm and elu 
     activation after each convolution.
     
-    We modify it by adding padding in the first conv layer so image dimensions are not 
-    changed after original resizing.
+    We modify change the stride of the first layer to 2 to downsample the image and apply 
+    a 2x2 average pooling window right after; in total, image is downsampled by a factor 
+    of 4. Afterwards the spatial image dimensions are preserved.
         
     Arguments:
         in_channels (int): Number of channels in the input images.
-        resized_img_dims (tuple or int): Resize the original input to this dimension. If a
-            single number, use the same for height and width.
+        in_height / in_width (int): Expected height/width of the input images. For 
+            informational purposes only; does not affect the model definition.
         features_per_layer (list): Number of features per layer (also defines number of 
             layers).
         kernel_sizes (list): Kernel size for each layer.        
     """
-    def __init__(self, in_channels=1, resized_img_dims=(36, 64),
+    def __init__(self, in_channels=1, in_height=144, in_width=256,
                  features_per_layer=(64, 64, 64, 64), kernel_sizes=(9, 7, 7, 7)):
         super().__init__()
 
+        # Downsampling layer (downsamples by 4)
+        layers = [
+            nn.Conv2d(in_channels, features_per_layer[0], kernel_sizes[0],
+                      padding=kernel_sizes[0] // 2, stride=2, bias=False),
+            nn.BatchNorm2d(features_per_layer[0]),
+            nn.ELU(inplace=True),
+            nn.AvgPool2d(2)]
+
         # Create the layers
-        layers = []
-        for in_features, out_features, ks in zip([in_channels, *features_per_layer],
-                                                 features_per_layer, kernel_sizes):
+        for in_features, out_features, ks in zip(features_per_layer,
+                                                 features_per_layer[1:],
+                                                 kernel_sizes[1:]):
             layers.append(nn.Conv2d(in_features, in_features, kernel_size=1, bias=False))
-            layers.append(nn.Conv2d(in_features, in_features, kernel_size=ks,
-                                    padding=ks // 2, groups=in_features, bias=False))
+            layers.append(
+                nn.Conv2d(in_features, in_features, kernel_size=ks, padding=ks // 2,
+                          groups=in_features, bias=False))
             layers.append(nn.Conv2d(in_features, out_features, kernel_size=1, bias=False))
             layers.append(nn.BatchNorm2d(out_features))
             layers.append(nn.ELU(inplace=True))
         self.layers = nn.Sequential(*layers)
 
         # Save some params
-        if isinstance(resized_img_dims, int):
-            resized_img_dims = (resized_img_dims, resized_img_dims)
-        self.resized_img_dims = resized_img_dims
         self.out_channels = features_per_layer[-1]
-        self.out_height = resized_img_dims[0]
-        self.out_width = resized_img_dims[1]
+        self.out_height = in_height // 4
+        self.out_width = in_width // 4
 
     def forward(self, input_):
-        resized = F.interpolate(input_, size=self.resized_img_dims, mode='bilinear',
-                               align_corners=False)  # align_corners avoids warnings
-        return self.layers(resized)
+        return self.layers(self.first_conv(input_))
 
     def init_parameters(self):
         init_conv(m for m in self.layers if isinstance(m, nn.Conv2d))
@@ -117,7 +122,7 @@ class StaticNet(nn.Module):
             layers.append(
                 nn.Sequential(
                     nn.Conv2d(in_features, out_features, kernel_size=ks, padding=p,
-                              bias=False), 
+                              bias=False),
                     nn.BatchNorm2d(out_features),
                     nn.ELU(inplace=True)))
         self.layers = nn.ModuleList(layers)
@@ -180,14 +185,14 @@ class VGG(nn.Module):
 
     Arguments:
         in_channels (int): Number of channels in the input images.
-        resized_img_dims (tuple or int): Resize the original input to this dimension. If a
-            single number, use the same for height and width.
+        in_height / in_width (int): Expected height/width of the input images. For 
+            informational purposes only; does not affect the model definition.
         layers_per_block (list of ints): Number of layers in each block.
         features_per_block (list of ints): Number of feature maps in each block. All
             layers in one block have the same number of feature maps.
     """
-    def __init__(self, in_channels=1, resized_img_dims=64,
-                 layers_per_block=[3, 3, 3], features_per_block=[64, 64, 64]):
+    def __init__(self, in_channels=1, in_height=144, in_width=256,
+                 layers_per_block=[2, 2, 4], features_per_block=[16, 32, 64]):
         super().__init__()
 
         # Create the layers
@@ -202,22 +207,16 @@ class VGG(nn.Module):
                                         bias=False))
                 layers.append(nn.BatchNorm2d(num_features))
                 layers.append(nn.ReLU(inplace=True))
-            layers.append(nn.AvgPool2d(2))
+            layers.append(nn.MaxPool2d(2))
         self.layers = nn.Sequential(*layers)
 
         # Save some params
-        if isinstance(resized_img_dims, int):
-            resized_img_dims = (resized_img_dims, resized_img_dims)
-        self.resized_img_dims = resized_img_dims
         self.out_channels = features_per_block[-1]
-        self.out_height = resized_img_dims[0] // 2**len(layers_per_block)
-        self.out_width = resized_img_dims[1] // 2**len(layers_per_block)
-
+        self.out_height = in_height // 2**len(layers_per_block)
+        self.out_width = in_width // 2**len(layers_per_block)
 
     def forward(self, input_):
-        resized = F.interpolate(input_, size=self.resized_img_dims, mode='bilinear',
-                                align_corners=False)  # align_corners avoids warnings
-        return self.layers(resized)
+        return self.layers(input_)
 
     def init_parameters(self):
         init_conv(m for m in self.layers if isinstance(m, nn.Conv2d))
@@ -334,8 +333,8 @@ class ResNet(nn.Module):
     
     Arguments:
         in_channels (int): Number of channels in the inputs.
-        resized_img_dims (tuple or int): Resize the original input to this dimension. If a
-            single number, use the same for height and width.
+        in_height / in_width (int): Expected height/width of the input images. For 
+            informational purposes only; does not affect the model definition.
         blocks_per_layer (list of ints): Number of building blocks (two or three layers)
             per layer. After each layer we spatially downsample and increase the number of
             feature maps.
@@ -348,14 +347,16 @@ class ResNet(nn.Module):
         bottleneck_factor (float): How much to reduce feature maps in bottleneck layers.
             Ignored if use_bottleneck=False.
     """
-    def __init__(self, in_channels=1, resized_img_dims=64, initial_maps=64,
-                 blocks_per_layer=(2, 2, 2), compression_factor=1,
+    def __init__(self, in_channels=1, in_height=144, in_width=256, initial_maps=16,
+                 blocks_per_layer=(2, 2, 2), compression_factor=2,
                  use_bottleneck=False, bottleneck_factor=0.25):
         super().__init__()
 
-        # First conv
-        self.conv1 = nn.Conv2d(in_channels, initial_maps, 3, padding=1)
-        self.bn1 = nn.BatchNorm2d(initial_maps)
+        # First conv (downsamples by 4 as done in ResNets)
+        self.first_conv = nn.Sequential(
+            nn.Conv2d(in_channels, initial_maps, 7, padding=3, stride=2, bias=False),
+            nn.BatchNorm2d(initial_maps), nn.ReLU(inplace=True),
+            nn.MaxPool2d(3, padding=1, stride=2))
 
         # Residual blocks
         blocks = []
@@ -370,22 +371,16 @@ class ResNet(nn.Module):
         self.blocks = nn.Sequential(*blocks)
 
         # Save some params
-        if isinstance(resized_img_dims, int):
-            resized_img_dims = (resized_img_dims, resized_img_dims)
-        self.resized_img_dims = resized_img_dims
         self.out_channels = blocks[-1].out_channels
-        self.out_height = resized_img_dims[0] // 2**(len(blocks_per_layer) - 1)
-        self.out_width = resized_img_dims[1] // 2**(len(blocks_per_layer) - 1)
+        self.out_height = in_height // 2**(len(blocks_per_layer) + 1)
+        self.out_width = in_width // 2**(len(blocks_per_layer) + 1)
 
     def forward(self, input_):
-        resized = F.interpolate(input_, size=self.resized_img_dims, mode='bilinear',
-                                align_corners=False)  # align_corners avoids warnings
-        h1 = F.relu(self.bn1(self.conv1(resized)), inplace=True)
-        return self.blocks(h1)
+        return self.blocks(self.first_conv(input_))
 
     def init_parameters(self):
-        init_conv([self.conv1])
-        init_bn([self.bn1])
+        init_conv([self.first_conv[0]])
+        init_bn([self.first_conv[1]])
         for block in self.blocks:
             block.init_parameters()
 
