@@ -52,7 +52,7 @@ class KonstiNet(nn.Module):
                  features_per_layer=(64, 64, 64, 64), kernel_sizes=(9, 7, 7, 7)):
         super().__init__()
 
-        # Downsampling layer (downsamples by 4)
+        # First conv layer (downsamples by 4)
         layers = [
             nn.Conv2d(in_channels, features_per_layer[0], kernel_sizes[0],
                       padding=kernel_sizes[0] // 2, stride=2, bias=False),
@@ -60,7 +60,7 @@ class KonstiNet(nn.Module):
             nn.ELU(inplace=True),
             nn.AvgPool2d(2)]
 
-        # Create the layers
+        # Rest of layers
         for in_features, out_features, ks in zip(features_per_layer,
                                                  features_per_layer[1:],
                                                  kernel_sizes[1:]):
@@ -79,7 +79,7 @@ class KonstiNet(nn.Module):
         self.out_width = in_width // 4
 
     def forward(self, input_):
-        return self.layers(self.first_conv(input_))
+        return self.layers(input_)
 
     def init_parameters(self):
         init_conv(m for m in self.layers if isinstance(m, nn.Conv2d))
