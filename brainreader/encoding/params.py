@@ -45,12 +45,12 @@ class KonstiParams(dj.Lookup):
 
     core_id:            smallint    # id for vgg nets
     ---
-    resized_img_dims:   smallint    # resize the input to this dimension at 1:1 aspect ratio
     features_per_layer: tinyblob    # number of feature maps in each layer
     kernel_sizes:       tinyblob    # kernel size in each layer
     """
-    contents = [{'core_id': 1, 'resized_img_dims': 64, 'features_per_layer': [64, ] * 8, 
-                 'kernel_sizes': [9, 7, 7, 7, 7, 7, 7, 7]}, ]
+    contents = [{'core_id': 1, 'features_per_layer': [64, ] * 8, 
+                 'kernel_sizes': [11, 7, 7, 7, 7, 7, 7, 7]}]
+
 
 @schema
 class VGGParams(dj.Lookup):
@@ -58,12 +58,11 @@ class VGGParams(dj.Lookup):
     
     core_id:            smallint    # id for vgg nets
     ---
-    resized_img_dims:   smallint    # resize the input to this dimension at 1:1 aspect ratio
     layers_per_block:   tinyblob    # number of layers per block
     features_per_block: tinyblob    # number of feature maps in each block
     """
-    contents = [{'core_id': 1, 'resized_img_dims': 64, 'layers_per_block': [4, 4],
-                 'features_per_block': [64, 64]}, ]
+    contents = [{'core_id': 1, 'layers_per_block': [1, 1, 3, 3],
+                 'features_per_block': [16, 32, 64, 64]}]
 
 
 @schema
@@ -72,7 +71,6 @@ class ResNetParams(dj.Lookup):
     
     core_id:            smallint        # id for resnets
     ---
-    resized_img_dims:   smallint        # resize the input to this size (1: 1 aspect ratio)
     initial_maps:       smallint        # number of feature maps in the very initial layer
     blocks_per_layer:   blob            # how many residual blocks (each 2 conv layers) in each residual "layer"
     compression_factor: float           # how much to decrease/increase feature maps after every residual layer
@@ -80,9 +78,8 @@ class ResNetParams(dj.Lookup):
     bottleneck_factor=NULL: float       # how much to reduce feature maps in bottleneck (if used)
     """
     contents = [
-        {'core_id': 1, 'resized_img_dims': 64, 'initial_maps': 64, 
-         'blocks_per_layer': [3, 3], 'compression_factor': 1,
-         'use_bottleneck': False}, ]
+        {'core_id': 1, 'initial_maps': 32, 'blocks_per_layer': [3, 3],
+         'compression_factor': 2, 'use_bottleneck': False}, ]
 
 
 @schema
@@ -184,14 +181,17 @@ class ModelParams(dj.Lookup):
             yield {'model_params': i, 'core_type': ct, 'core_id': cid, 'agg_type': at,
                    'agg_id': aid, 'readout_type': 'mlp', 'readout_id': 1,
                    'act_type': 'exp', 'act_id': 1}
-            
 
-    def get_model(self, num_cells, in_channels=1, out_channels=1):
+
+    def get_model(self, num_cells, in_channels=1, in_height=144, in_width=256,
+                  out_channels=1):
         """ Builds a network with the desired modules
         
         Arguments:
             num_cells (int): Number of cells to predict
-            in_channels (int): Number of channels in the input image. Default: 1 
+            in_channels (int): Number of channels in the input image. Default: 1
+            in_height (int): Height of the images to be fed to this model. Default: 144
+            in_width (int): Width of the images to be fed to this model. Default: 256
             out_channels (int): Number of channels in the predicted response. If 1 
                 (default), output of network will be a num_cells array, else output will 
                 be a num_cells x out_channels array.
@@ -203,7 +203,7 @@ class ModelParams(dj.Lookup):
             To share models with people with no access to the DB, send them:
                 models.py
                 core_type, agg_type, readout_type, act_type 
-                core_kwargs, readout_kwargs
+                core_kwargs, agg_kwargs, readout_kwargs, act_kwargs
             and modify this function to use those as input.
         """
         from brainreader.encoding import models
@@ -211,22 +211,24 @@ class ModelParams(dj.Lookup):
         # Build core
         core_type = self.fetch1('core_type')
         if core_type == 'konsti':
-            args = ['resized_img_dims', 'features_per_layer', 'kernel_sizes']
+            args = ['features_per_layer', 'kernel_sizes']
             core_params = (KonstiParams & self).fetch1()
             core_kwargs = {k: core_params[k] for k in args}
         elif core_type == 'vgg':
-            args = ['resized_img_dims', 'layers_per_block', 'features_per_block']
+            args = ['layers_per_block', 'features_per_block']
             core_params = (VGGParams & self).fetch1()
             core_kwargs = {k: core_params[k] for k in args}
         elif core_type == 'resnet':
-            args = ['resized_img_dims', 'initial_maps', 'blocks_per_layer',
-                    'compression_factor', 'use_bottleneck', 'bottleneck_factor']
+            args = ['initial_maps', 'blocks_per_layer', 'compression_factor',
+                    'use_bottleneck', 'bottleneck_factor']
             core_params = (ResNetParams & self).fetch1()
             core_kwargs = {k: core_params[k] for k in args}
             core_kwargs['use_bottleneck'] = bool(core_kwargs['use_bottleneck'])
         else:
             raise NotImplementedError(f'Core {core_type} not implemented')
-        core = models.build_extractor(core_type, in_channels=in_channels, **core_kwargs)
+        core = models.build_extractor(core_type, in_channels=in_channels,
+                                      in_height=in_height, in_width=in_width,
+                                      **core_kwargs)
 
         # Build aggregator
         agg_type = self.fetch1('agg_type')
