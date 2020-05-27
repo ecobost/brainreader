@@ -588,8 +588,8 @@ class FactorizedAggregator(nn.Module):
     """
     def __init__(self, num_cells, in_height, in_width):
         super().__init__()
-        self._mask_x = nn.Parameter(torch.zeros(num_cells, in_height))
-        self._mask_y = nn.Parameter(torch.zeros(num_cells, in_width))
+        self._mask_y = nn.Parameter(torch.zeros(num_cells, in_height))
+        self._mask_x = nn.Parameter(torch.zeros(num_cells, in_width))
 
     @property
     def mask_x(self):
