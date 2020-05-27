@@ -415,6 +415,7 @@ class GradientOneReconstruction(dj.Computed, Fillable):
 
         # Optimize
         utils.log('Optimize')
+        #TODO: Drop some stuff from here if I won't use it.
         jitter = ops.Jitter(opt_params['jitter']) if opt_params['jitter'] != 0 else None
         blur = (ops.GaussianBlur(opt_params['gradient_sigma'])
                 if opt_params['gradient_sigma'] != 0 else None)
@@ -433,41 +434,82 @@ class GradientOneReconstruction(dj.Computed, Fillable):
         )
         recon = recon.mean(0).squeeze().cpu().numpy()
         final_f = fevals[-1]
-        #TODO: Drop some stuff from here if I won't use it.
-        
+
         # Check for divergence
         if np.isnan(final_f) or np.isinf(final_f):
             raise ValueError('Objective function diverged!')
 
         # Insert
-        self.insert1({**key, 'reconstruction': recon, 'similarity': final_f[-1]})
+        self.insert1({**key, 'reconstruction': recon, 'similarity': final_f})
 
+# @schema
+# class GradientValSet(dj.Computed):
+#     definition = """ # collect all validation reconstructions for one model/params combo
+    
+#     -> train.Ensemble
+#     -> params.GradientParams
+#     """
+#     class OneImage(dj.Part):
+#         definition = """ # Image in this set
+#         -> master
+#         -> GradientOneReconstruction
+#         """
+#     @property
+#     def key_source(self):
+#         return train.Ensemble * params.GradientParams & GradientOneReconstruction
 
-class GradientValReconstructions():
-    definition = """ 
-    -> train.Ensemble
-    -> params.GradientParams
-    """
-    class OneImage():
-        definition = """ # one image in this set
-        -> master
-        one_image
-        """
-    def make():
-        # Fetch alm image ids, check that all the validation images are populated and create that set.
-        #print a warning otherwise.
-        pass
+#     def make(self, key):
+#         # Find all validation images for this set
+#         image_rel = data.Scan.Image & {'dset_id': key['ensemble_dset']}
+#         im_classes, im_ids = image_rel.fetch('image_class', 'image_id',
+#                                              order_by='image_class, image_id')
+#         dataparams = params.DataParams & {'data_params': key['ensemble_data']}
+#         im_mask = dataparams.get_image_mask(key['ensemble_dset'], split='val')
+#         im_classes = im_classes[im_mask]
+#         im_ids = im_ids[im_mask]
 
-class GradientValEvaluation():
-    definition = """
-    -> GradientValReconstructions
-    ---
-    ... # normal validation stuff
-    ...
-    """
-    pass
+#         # Check that all validation images have been reconstructed
+#         im_restr = [{'image_class': ic, 'image_id': iid} for ic, iid in zip(im_classes,
+#                                                                             im_ids)]
+#         recon_keys = (GradientOneReconstruction & key & im_restr).fetch('KEY')
+#         if len(im_ids) != len(recon_keys):
+#             print('Warning: Some validation images have not been reconstructed yet')
+#             return
 
-class GradientReconstructions():
+#         # Insert
+#         self.insert1(key)
+#         self.OneImage.insert(recon_keys)
+        
+
+# @schema
+# class GradientValEvaluation(dj.Computed):
+#     definition = """ # compute evaluation metrics for the validation set
+    
+#     -> GradientValSet
+#     ---
+#     val_mse:            float       # validation MSE computed at the original resolution
+#     val_corr:           float       # validation correlation computed at the original resolution
+#     """
+#     def make(self, key):
+#         # Get original images
+#         images = (params.DataParams & {'data_params': key['ensemble_data']}).get_images(
+#             key['ensemble_dset'], split='val')
+        
+#         # Get reconstructions
+#         recons = (GradientOneReconstruction & (GradientValSet & key)).fetch('reconstruction', 
+#                                                                             order_by='image_class, image_id')
+        
+#         #TODO Should I fetch all validation classes and ids here and do the check here rather than ahve ValSet?
+
+#         # Compute metrics
+#         val_mse = ((images - recons)**2).mean()
+#         val_corr = utils.compute_imagewise_correlation(images, recons)
+
+#         # Insert
+#         self.insert1({**key, 'val_mse': val_mse, 'val_corr': val_corr})
+        
+#TODO: Same as valset and valEvaluation but for test
+class GradientTestSet():
     pass
 
 class GradientEvaluation():
