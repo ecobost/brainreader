@@ -434,9 +434,13 @@ class GradientOneReconstruction(dj.Computed, Fillable):
         recon = recon.mean(0).squeeze().cpu().numpy()
         final_f = fevals[-1]
         #TODO: Drop some stuff from here if I won't use it.
+        
+        # Check for divergence
+        if np.isnan(final_f) or np.isinf(final_f):
+            raise ValueError('Objective function diverged!')
 
         # Insert
-        self.insert1({**key, 'reconstruction': recon, 'similarity': final_f})
+        self.insert1({**key, 'reconstruction': recon, 'similarity': final_f[-1]})
 
 
 class GradientValReconstructions():
