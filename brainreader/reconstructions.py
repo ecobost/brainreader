@@ -328,18 +328,18 @@ class AHPEvaluation(dj.Computed):
 """ Gradient decoding."""
 
 class Fillable:
-    """ Small class that adds the (hidden) ability to populate reconstruction classes 
-    restricting to only certain split."""
+    """ Small class that adds the ability to populate reconstruction classes restricting 
+    to only certain split."""
     @classmethod
-    def _fill(cls, split, restr):
+    def fill_recons(cls, restr, split='val'):
         """ Fill reconstruction images.
         
         Arguments:
-            split (str): Which split to populate ('train', 'val', 'test').
             restr (dj restr): Restriction that will be passed to the populate. It will 
-                usually restrict to some GradientParams.
+                usually restrict to some dataset or GradientParams.
+            split (str): Which split to populate ('train', 'val', 'test').
         """
-        for key in BestEnsemble.proj():
+        for key in (BestEnsemble & restr).proj():
             # Find desired image ids
             image_rel = data.Scan.Image & {'dset_id': key['ensemble_dset']}
             im_classes, im_ids = image_rel.fetch('image_class', 'image_id',
@@ -437,21 +437,6 @@ class GradientOneReconstruction(dj.Computed, Fillable):
 
         # Insert
         self.insert1({**key, 'reconstruction': recon, 'similarity': final_f})
-
-    @staticmethod
-    def fill_val_recons():
-        """ Fills reconstructions for validation images for all params."""
-        GradientOneReconstruction._fill(split='val', restr={})
-
-    @staticmethod
-    def fill_test_recons(restr):
-        """ Fill reconstructions for test images.
-        
-        Arguments:
-            restr (dj restr): Restriction send to the populate (usually a single 
-                GradientParams).
-        """
-        GradientOneReconstruction._fill(split='test', restr=restr)
 
 
 class GradientValReconstructions():
