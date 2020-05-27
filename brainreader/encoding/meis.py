@@ -77,7 +77,7 @@ class MEIParams(dj.Lookup):
     contrast_std:   float           # optimize in the isosphere of this contrast
     gradient_blur:  float           # sigma for the blurring in the gradient
     """
-    contents = [{'mei_params': 1, 'height': 144, 'width': 256, 'step_size':100,
+    contents = [{'mei_params': 1, 'height': 144, 'width': 256, 'step_size': 100,
                 'num_iterations': 1000, 'contrast_std': 1, 'gradient_blur': 2},]
 
 
