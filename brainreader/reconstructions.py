@@ -18,8 +18,8 @@ class BestEnsemble(dj.Lookup):
     definition = """ # collect the best ensemble models for each dataset
     -> train.Ensemble
     """
-    contents = [{'ensemble_dset': 1, 'ensemble_data': 2, 'ensemble_model': 2,
-                 'ensemble_training': 1, 'ensemble_params': 1},
+    contents = [{'ensemble_dset': 1, 'ensemble_data': 2, 'ensemble_model': 12,
+                 'ensemble_training': 7, 'ensemble_params': 1},
                 {'ensemble_dset': 5, 'ensemble_data': 2, 'ensemble_model': 12,
                  'ensemble_training': 7, 'ensemble_params': 1},]
 
@@ -65,16 +65,6 @@ class ModelResponses(dj.Computed):
     ---
     responses:      blob@brdata     # model responses (num_images x num_units); rows ordered as in ImageSet, cols ordered as returned by the model
     """
-
-    # class PerImage(dj.Part):
-    #     definition = """ # model responses to one image (ordered by unit_id)
-
-    #     -> master
-    #     -> data.ImageSet.Image
-    #     ---
-    #     model_resps:        blob@brdata
-    #     """
-
     @property
     def key_source(self):
         return train.Ensemble * data.ImageSet & BestEnsemble
@@ -111,9 +101,6 @@ class ModelResponses(dj.Computed):
         # Insert
         utils.log('Inserting')
         self.insert1({**key, 'responses': resps})
-        # for ic, iid, r in zip(im_classes, im_ids, resps):
-        #     self.PerImage.insert1({**key, 'image_class': ic, 'image_id': iid,
-        #                           'model_resps': r})
 
 
 @schema
@@ -126,6 +113,11 @@ class AHPValEvaluation(dj.Computed):
     val_mse:            float       # validation MSE computed at the original resolution
     val_corr:           float       # validation correlation computed at the original resolution
     """
+
+    @property
+    def key_source(self):
+        # retrict to using simple averaging of images (results on par with weighted average)
+        return ModelResponses * params.AHPParams & {'weight_samples': False}
 
     def make(self, key):
         # Get data to reconstruct
@@ -333,56 +325,134 @@ class AHPEvaluation(dj.Computed):
 
 
 ################################ GRADIENT BASED #########################################
-""" Gradient decoding """
+""" Gradient decoding."""
 
-def fill_single_recons():
-    """Helper function to fill reconstructions for all validation images and all params"""
+class Fillable:
+    """ Small class that adds the (hidden) ability to populate reconstruction classes 
+    restricting to only certain split."""
+    @classmethod
+    def _fill(cls, split, restr):
+        """ Fill reconstruction images.
+        
+        Arguments:
+            split (str): Which split to populate ('train', 'val', 'test').
+            restr (dj restr): Restriction that will be passed to the populate. It will 
+                usually restrict to some GradientParams.
+        """
+        for key in BestEnsemble.proj():
+            # Find desired image ids
+            image_rel = data.Scan.Image & {'dset_id': key['ensemble_dset']}
+            im_classes, im_ids = image_rel.fetch('image_class', 'image_id',
+                                                 order_by='image_class, image_id')
+            dataparams = params.DataParams & {'data_params': key['ensemble_data']}
+            im_mask = dataparams.get_image_mask(key['ensemble_dset'], split=split)
+            im_classes = im_classes[im_mask]
+            im_ids = im_ids[im_mask]
 
-    # Fetch all image ids in the validation set
-
-    # Call populate
-    # TODO: Maybe receive a restr that cna be send to the populate,
-    pass
-
-
-def fill_single_recons(split='val', restr={}):
-    """Helper function to fill reconstructions for all validation images and all params"""
-
-    # Fetch all image ids in the validation set
-
-    # Call populate
-    pass
-
-def fill_val_recons():
-    pass
-
-def fill_test_recons(params):
-    # same but estricting the table to the right params
-    #TODO: Maybe I can have a general funciton above that this functions call.
-    pass
+            # Call populate for them
+            for ic, iid in zip(im_classes, im_ids):
+                cls.populate(key, restr, {'image_class': ic, 'image_id': iid},
+                             reserve_jobs=True)
 
 
-# Create val_recons, test_recons and use a general fill_recons function.
-
-#option 3:
-
-class GradientOneRecons():
-    definition = """ # reconstruct one image 
+@schema
+class GradientOneReconstruction(dj.Computed, Fillable):
+    definition = """ # create gradient reconstructions
     
     -> train.Ensemble
-    -> params. GradientParams
-    -> OneImage
+    -> params.GradientParams
+    -> data.Scan.Image.proj(ensemble_dset='dset_id')
+    ---
+    reconstruction:     blob@brdata     # reconstruction for the response to one image
+    similarity:         float           # final similarity measure between target and recorded responses
     """
     @property
-    def key_source(self, key):
-        #TODO: A way to limit this to images of that dataset adn maybe also to validation/test images
-        pass
+    def key_source(self):
+        all_keys = (train.Ensemble * params.GradientParams * data.Scan.Image.proj(ensemble_dset='dset_id'))
+        return all_keys & BestEnsemble
+        #TODO: Could I limit this to validation/test images here
 
+    def make(self, key):
+        import featurevis
+        from featurevis import ops
+        from featurevis import utils as fvutils
+
+        # Get recorded responses to this image
+        utils.log('Get target response')
+        dataparams = params.DataParams & {'data_params': key['ensemble_data']}
+        responses = dataparams.get_responses(key['ensemble_dset'], split=None)  # all images
+        im_classes, im_ids = (data.Scan.Image & {'dset_id': key['ensemble_dset']}).fetch(
+            'image_class', 'image_id', order_by='image_class, image_id')
+        im_mask = np.logical_and(im_classes == key['image_class'],
+                                 im_ids == key['image_id'])
+        resp = responses[im_mask] # 1 x num_cells
+
+        # Get model
+        utils.log('Instantiating model')
+        model = (train.Ensemble & key).get_model()
+        model.eval()
+        model.cuda()
+
+        # Get some params
+        utils.log('Set up optimization')
+        h, w = dataparams.fetch1('image_height', 'image_width')
+        opt_params = (params.GradientParams & key).fetch1()
+        if dataparams.fetch1('img_normalization') != 'zscore-train':
+            raise NotImplementedError('Cannot handle images that are not zscored.')
+
+        # Set up initial image
+        torch.manual_seed(opt_params['seed'])
+        initial_image = torch.randn(1, 1, h, w, device='cuda')
+
+        # Set up optimization function
+        neural_resp = torch.as_tensor(resp, dtype=torch.float32, device='cuda')
+        if opt_params['similarity'] == 'negeuclidean':
+            similarity = fvutils.Compose([ops.MSE(neural_resp), ops.MultiplyBy(-1)])
+        else:
+            msg = 'Similarity metric {similarity} not implemented'.format(**opt_params)
+            raise NotImplementedError(msg)
+        obj_function = fvutils.Compose([model, similarity])
+
+        # Optimize
+        utils.log('Optimize')
+        jitter = ops.Jitter(opt_params['jitter']) if opt_params['jitter'] != 0 else None
+        blur = (ops.GaussianBlur(opt_params['gradient_sigma'])
+                if opt_params['gradient_sigma'] != 0 else None)
+        l2_reg = (ops.LpNorm(p=2, weight=opt_params['l2_weight'])
+                  if opt_params['l2_weight'] != 0 else None)
+        fix_std = ops.ChangeStd(1) if opt_params['keep_std_fixed'] else None
+        recon, fevals, _ = featurevis.gradient_ascent(
+            obj_function,
+            initial_image,
+            step_size=opt_params['step_size'],
+            num_iterations=opt_params['num_iterations'],
+            transform=jitter,
+            gradient_f=blur,
+            regularization=l2_reg,
+            post_update=fix_std,
+        )
+        recon = recon.mean(0).squeeze().cpu().numpy()
+        final_f = fevals[-1]
+        #TODO: Drop some stuff from here if I won't use it.
+
+        # Insert
+        self.insert1({**key, 'reconstruction': recon, 'similarity': final_f})
+
+    @staticmethod
     def fill_val_recons():
-        pass
+        """ Fills reconstructions for validation images for all params."""
+        GradientOneReconstruction._fill(split='val', restr={})
 
-    def fill_test_recons():
-        pass
+    @staticmethod
+    def fill_test_recons(restr):
+        """ Fill reconstructions for test images.
+        
+        Arguments:
+            restr (dj restr): Restriction send to the populate (usually a single 
+                GradientParams).
+        """
+        GradientOneReconstruction._fill(split='test', restr=restr)
+
 
 class GradientValReconstructions():
     definition = """ 
