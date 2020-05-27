@@ -66,6 +66,7 @@ class Scan(dj.Computed):
 
     class Unit(dj.Part):
         definition = """ # all recorded units in this scan
+        
         -> master
         unit_id:    smallint    # this matches with the unit id in meso.ScanSet
         ---
@@ -301,11 +302,13 @@ def trapezoid_integration(x, y, x0, xf):
 @schema
 class Responses(dj.Computed):
     definition = """ # responses recorded during scanning (averaged over the presentation time)
+    
     -> Scan
     """
 
     class PerImage(dj.Part):
         definition = """ # response to a single image
+        
         -> master
         -> Scan.Image
         ---
@@ -376,11 +379,13 @@ class Responses(dj.Computed):
 @schema
 class ImageSet(dj.Manual):
     definition = """ # set of images
+    
     iset_id:    smallint
     """
 
     class Image(dj.Part):
         definition = """ # one image
+        
         -> master
         image_class:    varchar(32)   # type of image presented (same as in stimulus.StaticImage)
         image_id:       int           # id of this image (same as in stimulus.StaticImage)
