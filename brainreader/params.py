@@ -193,7 +193,9 @@ class DataParams(dj.Lookup):
             'response', order_by='image_class, image_id')
 
         # Restrict to responses for images in desired split (and average repeats)
-        if split is not None:
+        if split is None:
+            responses = all_responses
+        else:
             img_mask = self.get_image_mask(dset_id, split)
             responses = all_responses[img_mask]
         responses = np.stack([r.mean(0) for r in responses] if avg_repeats else responses)
@@ -564,28 +566,34 @@ class AHPParams(dj.Lookup):
             yield {
                 'ahp_params': i, 'num_samples': ni, 'similarity': s, 'weight_samples': w}
 
-
-class GradientParams:#(dj.Lookup):
+@schema
+class GradientParams(dj.Lookup):
     definition = """ # params for gradient based reconstruction
     
     gradient_params:    smallint
     ---
-    initial_std:        float       # std of the initial image
+    seed:               smallint    # seed used to get the initial (random estimate)
     num_iterations:     smallint    # number of iterations for the optimization
     step_size:          float       # step size for the optimization
-    similarity:         varchar(8)  # how to measure similarity between target responses and model responses
-    jitter:             float       # (pixels) amount of jittering to apply every iteration
+    similarity:         varchar(16) # how to measure similarity between target responses and model responses
+    jitter:             tinyint     # (pixels) amount of jittering to apply every iteration
     gradient_sigma:     float       # (pixels) blur the gradient using a gaussian window with this sigma
     l2_weight:          float       # weight for the l2-norm regularization used during optimization
+    keep_std_fixed:     boolean     # whether to keep standard deviation of optimized image at 1
     """
+
     @property
     def contents(self):
-        step_size = [1, 10, 100, 1000]
-        similarities = ['negeuclidean', 'cosine', 'poisson_lik']
-        jitter = [0, 1, 3, 5, 7]
-        gradient_sigma = [0, 1, 3, 5]
-        l2_weight = [0, 1e-4]
-        for i, (s, j, g, l) in enumerate(itertools.product(step_size, jitter, gradient_sigma, 
-                                                           l2_weight), start=1):
-            yield {'gradient_params': i, 'initial_std': 0.1, 'num_iterations': 1000, 
-                   'step_size': s, 'jitter': j, 'gradient_sigma': g, 'l2_weight': l}
+        similarities = ['negeuclidean']#, 'cosine', 'poisson_lik'] # TODO: probably restrict to only one here
+        step_sizes = [100, 1000]
+        jitters = [0, 1, 3, 5, 8]
+        sigmas = [0, 3, 5, 10, 15]  # TODO: 15 may be too much
+        l2_weights = [0, 1e-2]
+        fix_stds = [False, True]  # TODO: restrict to True only here
+        for i, (sim, ss, j, gs, l2, fs) in enumerate(
+                itertools.product(similarities, step_sizes, jitters, sigmas, l2_weights,
+                                  fix_stds), start=1):
+            yield {
+                'gradient_params': i, 'seed': 2345, 'num_iterations': 1000,
+                'step_size': ss, 'similarity': sim, 'jitter': j, 'gradient_sigma': gs,
+                'l2_weight': l2, 'keep_std_fixed': fs}
