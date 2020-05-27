@@ -74,7 +74,7 @@ class TrainedModel(dj.Computed):
         """ Restrict to only the models that work well. """
         all_keys = (brdata.Responses * brparams.DataParams * params.ModelParams *
                     params.TrainingParams)
-        return all_keys & {'data_params': 2} #& 'model_params in (2, 12)'
+        return all_keys & {'data_params': 2, 'model_params': 12}
 
     @staticmethod
     def _compute_loss(responses, pred_responses, loss_function='mse'):
