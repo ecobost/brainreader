@@ -339,7 +339,7 @@ class Fillable:
         for key in BestEnsemble.proj():
             dataparams = params.DataParams & {'data_params': key['ensemble_data']}
             im_restr = (data.Split.PerImage & dataparams &
-                        {'dset_id': key['ensemble_id'], 'split': split})
+                        {'dset_id': key['ensemble_dset'], 'split': split})
             cls.populate(key, restr, im_restr, reserve_jobs=True)
 
 
