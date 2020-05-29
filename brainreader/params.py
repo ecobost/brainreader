@@ -122,7 +122,7 @@ class DataParams(dj.Lookup):
         """
         # Check data.Split is populated
         if len(data.Split & self & {'dset_id': dset_id}) != 1:
-            raise ValueError(f'Need to populate data.Split for dset_id {dset_id}.')
+            raise ValueError(f'Data.Split for dset {dset_id} has not been populated yet.')
 
         # Create image mask
         assignments = (data.Split.PerImage & self & {'dset_id': dset_id}).fetch(
