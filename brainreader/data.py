@@ -376,6 +376,77 @@ class Responses(dj.Computed):
                 **key, 'image_class': im_class, 'image_id': im_id,
                 'response': image_resps[im_idx], 'blank_response': blank_resps[im_idx]})
 
+
+@schema
+class SplitParams(dj.Lookup):
+    definition = """ # how to split the dataset into training, validation and test sets
+    
+    split_params:       smallint 
+    --- 
+    seed:               smallint        # seed used to get the train/validation split
+    test_set:           varchar(16)     # how to create the test set
+    train_percentage:   float           # percentage of images (not in test set) used for training, rest are validation
+    """
+    contents = [{
+        'split_params': 1, 'seed': 1234, 'test_set': 'repeats', 'train_percentage': 0.9}]
+
+
+@schema
+class Split(dj.Computed):
+    definition = """ # assign images in a dataset to train/val/test set
+
+    -> Scan
+    -> SplitParams
+    """
+    class PerImage(dj.Part):
+        definition = """ # split assignment for each image
+        
+        -> master
+        -> Scan.Image
+        ---
+        split:          varchar(8)          # 'train', 'val' or 'test'
+        """
+
+    def make(self, key):
+        # Get params
+        test_set, seed, train_percentage = (SplitParams & key).fetch1(
+            'test_set', 'seed', 'train_percentage')
+
+        # Get image ids
+        image_classes, image_ids, num_repeats = (Scan.Image & key).fetch(
+            'image_class', 'image_id', 'num_repeats', order_by='image_class, image_id')
+
+        # Set seed for RNG
+        np.random.seed(seed)
+
+        # Create test mask
+        if test_set == 'repeats':
+            test_mask = num_repeats > 1
+        else:
+            raise NotImplementedError(f'Test split {test_set} not implemented')
+
+        # Create train mask with True's in non-test positions at random
+        num_train_images = int(round(np.count_nonzero(~test_mask) * train_percentage))
+        train_mask = np.zeros(len(test_mask), dtype=bool)
+        train_mask[~test_mask] = (np.random.permutation(np.count_nonzero(~test_mask)) <
+                                  num_train_images)
+
+        # Create validation mask (remaining images)
+        val_mask = np.logical_not(np.logical_or(train_mask, test_mask))
+
+        # Insert
+        self.insert1(key)
+        self.PerImage.insert(
+            [{**key, 'image_class': ic, 'image_id': iid, 'split': 'test'}
+             for ic, iid in zip(image_classes[test_mask], image_ids[test_mask])])
+        self.PerImage.insert(
+            [{**key, 'image_class': ic, 'image_id': iid, 'split': 'train'}
+             for ic, iid in zip(image_classes[train_mask], image_ids[train_mask])])
+        self.PerImage.insert(
+            [{**key, 'image_class': ic, 'image_id': iid, 'split': 'val'}
+             for ic, iid in zip(image_classes[val_mask], image_ids[val_mask])])
+
+
 @schema
 class ImageSet(dj.Manual):
     definition = """ # set of images

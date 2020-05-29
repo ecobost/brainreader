@@ -44,29 +44,12 @@ class ResponseNormalization(dj.Lookup):
 
 
 @schema
-class TestImages(dj.Lookup):
-    definition = """ # how to create the test set
-
-    test_set:       varchar(16)
-    ---
-    description:    varchar(256)
-    """
-    contents = [
-        {
-            'test_set': 'repeats',
-            'description': 'Use as test set the images that have been shown more than once'
-        }, ]
-
-
-@schema
 class DataParams(dj.Lookup):
-    definition = """ # data-relevant parameters
+    definition = """ # data-specific parameters
 
     data_params:        smallint    # id of data params
     ---
-    -> TestImages                   # how are test images chosen
-    split_seed:         smallint    # seed used to get the train/validation split
-    train_percentage:   float       # percentage of images (not in test set) used for training, rest are validation
+    -> SplitParams                  # how to split the examples into train/val/test
     image_height:       smallint    # height for images
     image_width:        smallint    # width for images
     -> ImageNormalization           # how images are normalized
@@ -81,10 +64,9 @@ class DataParams(dj.Lookup):
         resp_norms = ['zscore-blanks', 'stddev-blanks']
         for i, resp_norm in enumerate(resp_norms, start=1):
             yield {
-                'data_params': i, 'test_set': 'repeats', 'split_seed': 1234,
-                'train_percentage': 0.9, 'image_height': 144, 'image_width': 256,
-                'img_normalization': 'zscore-train', 'only_soma': False,
-                'discard_edge': 8, 'discard_unknown': True,
+                'data_params': i, 'split_params': 1, 'image_height': 144,
+                'image_width': 256, 'img_normalization': 'zscore-train',
+                'only_soma': False, 'discard_edge': 8, 'discard_unknown': True,
                 'resp_normalization': resp_norm}
 
     def get_images(self, dset_id, split='train'):
@@ -138,37 +120,14 @@ class DataParams(dj.Lookup):
             mask (np.array) A boolean array of size num_images with the desired assignment
                 for all images in the dataset (ordered by image_class, image_id).
         """
-        # Get test mask
-        test_set = self.fetch1('test_set')
-        if test_set == 'repeats':
-            num_repeats = (data.Scan.Image & {'dset_id': dset_id}).fetch(
-                'num_repeats', order_by='image_class, image_id')
-            test_mask = num_repeats > 1
-        else:
-            raise NotImplementedError(f'Test split {test_set} not implemented')
+        # Check data.Split is populated
+        if len(data.Split & self & {'dset_id': dset_id}) != 1:
+            raise ValueError(f'Need to populate data.Split for dset_id {dset_id}.')
 
-        # Split data
-        if split in ['train', 'val']:
-            # Set seed for RNG (and preserve previous RNG state)
-            prev_state = np.random.get_state()
-            np.random.seed(self.fetch1('split_seed'))
-
-            # Compute how many training images we want
-            train_percentage = self.fetch1('train_percentage')
-            train_images = int(round(np.count_nonzero(~test_mask) * train_percentage))
-
-            # Create a mask with train_images True's in non-test positions at random
-            mask = np.zeros(len(test_mask), dtype=bool)
-            train_mask = (np.random.permutation(np.count_nonzero(~test_mask)) <
-                          train_images)
-            mask[~test_mask] = train_mask if split == 'train' else ~train_mask
-
-            # Return random number generator to previous state
-            np.random.set_state(prev_state)
-        elif split == 'test':
-            mask = test_mask
-        else:
-            raise NotImplementedError(f'Unrecognized {split} split')
+        # Create image mask
+        assignments = (data.Split.PerImage & self & {'dset_id': dset_id}).fetch(
+            'split', order_by='image_class, image_id')
+        mask = assignments == split
 
         return mask
 
