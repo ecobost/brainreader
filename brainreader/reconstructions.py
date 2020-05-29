@@ -352,7 +352,7 @@ class GradientOneReconstruction(dj.Computed, Fillable):
     -> data.Scan.Image.proj(ensemble_dset='dset_id')
     ---
     reconstruction:     blob@brdata     # reconstruction for the response to one image
-    similarity:         float           # final similarity measure between target and recorded responses
+    sim_value:          float           # final similarity measure between target and recorded responses
     """
     @property
     def key_source(self):
@@ -428,7 +428,7 @@ class GradientOneReconstruction(dj.Computed, Fillable):
             raise ValueError('Objective function diverged!')
 
         # Insert
-        self.insert1({**key, 'reconstruction': recon, 'similarity': final_f})
+        self.insert1({**key, 'reconstruction': recon, 'sim_value': final_f})
 
 
 
