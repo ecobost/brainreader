@@ -454,6 +454,7 @@ class GradientValEvaluation(dj.Computed):
                     {'dset_id': key['ensemble_dset'], 'split': 'val'})
         recons = (GradientOneReconstruction & key & im_restr).fetch(
             'reconstruction', order_by='image_class, image_id')
+        recons = np.stack(recons)
 
         # Check all validation images have been reconstructed
         if len(images) != len(recons):
@@ -478,7 +479,7 @@ class GradientEvaluation(dj.Computed):
     test_pixel_mse: longblob    # pixel-wise MSE (computed per pixel, averaged across images)
     test_pixel_corr:longblob    # pixel-wise correlation (computed per pixel across images)
     """
-    
+
     @property
     def key_source(self):
         return train.Ensemble * params.GradientParams & GradientOneReconstruction
@@ -493,7 +494,8 @@ class GradientEvaluation(dj.Computed):
                     {'dset_id': key['ensemble_dset'], 'split': 'test'})
         recons, image_classes = (GradientOneReconstruction & key & im_restr).fetch(
             'reconstruction', 'image_class', order_by='image_class, image_id')
-        
+        recons = np.stack(recons)
+
         # Restrict to natural images
         images = images[image_classes == 'imagenet']
         recons = recons[image_classes == 'imagenet']
