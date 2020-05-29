@@ -146,13 +146,10 @@ class LinearReconstructions(dj.Computed):
         recons = utils.resize(recons, new_h, new_w)
 
         # Find out image ids of test set images
-        image_mask = (params.DataParams & key).get_image_mask(key['dset_id'],
-                                                              split='test')
-        image_classes, image_ids = (data.Scan.Image & key).fetch('image_class',
-                                                                 'image_id',
-                                                                 order_by='image_class, image_id')
-        image_classes = image_classes[image_mask]
-        image_ids = image_ids[image_mask]
+        split_rel = (data.Split.PerImage & key & (params.DataParams & key) &
+                     {'split': 'test'})
+        image_classes, image_ids = split_rel.fetch('image_class', 'image_id',
+                                                   order_by='image_class, image_id')
 
         # Insert
         self.insert1(key)
@@ -357,7 +354,7 @@ class MLPModel(dj.Computed):
             pred_images = best_model(train_responses.cuda())
             best_model.cpu()
         train_mse = ((pred_images.cpu() - train_images)** 2).mean().item()
-        train_corr = utils.compute_imagewise_correlation(pred_images.cpu().numpy(), 
+        train_corr = utils.compute_imagewise_correlation(pred_images.cpu().numpy(),
                                                          train_images.numpy())
 
         # Insert
@@ -469,12 +466,10 @@ class MLPReconstructions(dj.Computed):
         recons = utils.resize(recons, new_h, new_w)
 
         # Find out image ids of test set images
-        image_mask = (params.DataParams & key).get_image_mask(key['dset_id'],
-                                                              split='test')
-        image_classes, image_ids = (data.Scan.Image & key).fetch(
-            'image_class', 'image_id', order_by='image_class, image_id')
-        image_classes = image_classes[image_mask]
-        image_ids = image_ids[image_mask]
+        split_rel = (data.Split.PerImage & key & (params.DataParams & key) &
+                     {'split': 'test'})
+        image_classes, image_ids = split_rel.fetch('image_class', 'image_id',
+                                                   order_by='image_class, image_id')
 
         # Insert
         self.insert1(key)
@@ -689,13 +684,12 @@ class GaborReconstructions(dj.Computed):
         recons = utils.resize(recons, new_h, new_w)
 
         # Find out image ids of test set images
-        image_mask = (params.DataParams & key).get_image_mask(key['dset_id'],
-                                                              split='test')
-        image_classes, image_ids = (data.Scan.Image & key).fetch('image_class',
-                                                                 'image_id',
-                                                                 order_by='image_class, image_id')
-        image_classes = image_classes[image_mask]
-        image_ids = image_ids[image_mask]
+        split_rel = (data.Split.PerImage & key & (params.DataParams & key) &
+                     {'split': 'test'})
+        image_classes, image_ids = split_rel.fetch('image_class', 'image_id',
+                                                   order_by='image_class, image_id')
+
+
 
         # Insert
         self.insert1(key)

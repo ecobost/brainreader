@@ -261,13 +261,10 @@ class AHPReconstructions(dj.Computed):
                            for idx, ws in zip(best_indices, norm_weights)])
 
         # Find out image ids of test set images
-        image_mask = dataparams.get_image_mask(key['ensemble_dset'], split='test')
-        image_classes, image_ids = (data.Scan.Image &
-                                    {'dset_id': key['ensemble_dset']}).fetch(
-                                        'image_class', 'image_id',
-                                        order_by='image_class, image_id')
-        image_classes = image_classes[image_mask]
-        image_ids = image_ids[image_mask]
+        split_rel = (data.Split.PerImage & dataparams &
+                     {'dset_id': key['ensemble_dset'], 'split': 'test'})
+        image_classes, image_ids = split_rel.fetch('image_class', 'image_id',
+                                                   order_by='image_class, image_id')
 
         # Insert
         utils.log('Inserting reconstructions')
@@ -339,20 +336,11 @@ class Fillable:
                 usually restrict to some dataset or GradientParams.
             split (str): Which split to populate ('train', 'val', 'test').
         """
-        for key in (BestEnsemble & restr).proj():
-            # Find desired image ids
-            image_rel = data.Scan.Image & {'dset_id': key['ensemble_dset']}
-            im_classes, im_ids = image_rel.fetch('image_class', 'image_id',
-                                                 order_by='image_class, image_id')
+        for key in BestEnsemble.proj():
             dataparams = params.DataParams & {'data_params': key['ensemble_data']}
-            im_mask = dataparams.get_image_mask(key['ensemble_dset'], split=split)
-            im_classes = im_classes[im_mask]
-            im_ids = im_ids[im_mask]
-
-            # Call populate for them
-            for ic, iid in zip(im_classes, im_ids):
-                cls.populate(key, restr, {'image_class': ic, 'image_id': iid},
-                             reserve_jobs=True)
+            im_restr = (data.Split.PerImage & dataparams &
+                        {'dset_id': key['ensemble_id'], 'split': split})
+            cls.populate(key, restr, im_restr, reserve_jobs=True)
 
 
 @schema
@@ -442,78 +430,86 @@ class GradientOneReconstruction(dj.Computed, Fillable):
         # Insert
         self.insert1({**key, 'reconstruction': recon, 'similarity': final_f})
 
-# @schema
-# class GradientValSet(dj.Computed):
-#     definition = """ # collect all validation reconstructions for one model/params combo
+
+
+@schema
+class GradientValEvaluation(dj.Computed):
+    definition = """ # evaluate gradient reconstruction on the validation set
     
-#     -> train.Ensemble
-#     -> params.GradientParams
-#     """
-#     class OneImage(dj.Part):
-#         definition = """ # Image in this set
-#         -> master
-#         -> GradientOneReconstruction
-#         """
-#     @property
-#     def key_source(self):
-#         return train.Ensemble * params.GradientParams & GradientOneReconstruction
+    -> train.Ensemble
+    -> params.GradientParams
+    """
 
-#     def make(self, key):
-#         # Find all validation images for this set
-#         image_rel = data.Scan.Image & {'dset_id': key['ensemble_dset']}
-#         im_classes, im_ids = image_rel.fetch('image_class', 'image_id',
-#                                              order_by='image_class, image_id')
-#         dataparams = params.DataParams & {'data_params': key['ensemble_data']}
-#         im_mask = dataparams.get_image_mask(key['ensemble_dset'], split='val')
-#         im_classes = im_classes[im_mask]
-#         im_ids = im_ids[im_mask]
+    @property
+    def key_source(self):
+        return train.Ensemble * params.GradientParams & GradientOneReconstruction
 
-#         # Check that all validation images have been reconstructed
-#         im_restr = [{'image_class': ic, 'image_id': iid} for ic, iid in zip(im_classes,
-#                                                                             im_ids)]
-#         recon_keys = (GradientOneReconstruction & key & im_restr).fetch('KEY')
-#         if len(im_ids) != len(recon_keys):
-#             print('Warning: Some validation images have not been reconstructed yet')
-#             return
+    def make(self, key):
+        # Get original images
+        dataparams = (params.DataParams & {'data_params': key['ensemble_data']})
+        images = dataparams.get_images(key['ensemble_dset'], split='val')
 
-#         # Insert
-#         self.insert1(key)
-#         self.OneImage.insert(recon_keys)
-        
+        # Get recons
+        im_restr = (data.Split.PerImage & dataparams &
+                    {'dset_id': key['ensemble_dset'], 'split': 'val'})
+        recons = (GradientOneReconstruction & key & im_restr).fetch(
+            'reconstruction', order_by='image_class, image_id')
 
-# @schema
-# class GradientValEvaluation(dj.Computed):
-#     definition = """ # compute evaluation metrics for the validation set
+        # Check all validation images have been reconstructed
+        if len(images) != len(recons):
+            raise ValueError('Some validation images may not be reconstructed.')
+
+        # Compute metrics
+        val_mse = ((images - recons)**2).mean()
+        val_corr = utils.compute_imagewise_correlation(images, recons)
+
+        # Insert
+        self.insert1({**key, 'val_mse': val_mse, 'val_corr': val_corr})
+
+@schema
+class GradientEvaluation(dj.Computed):
+    definition = """ # evaluate gradient reconstruction in natural images in test set
+
+    -> train.Ensemble
+    -> params.GradientParams
+    ---
+    test_mse:       float       # average MSE across all image
+    test_corr:      float       # average correlation (computed per image and averaged across images)
+    test_pixel_mse: longblob    # pixel-wise MSE (computed per pixel, averaged across images)
+    test_pixel_corr:longblob    # pixel-wise correlation (computed per pixel across images)
+    """
     
-#     -> GradientValSet
-#     ---
-#     val_mse:            float       # validation MSE computed at the original resolution
-#     val_corr:           float       # validation correlation computed at the original resolution
-#     """
-#     def make(self, key):
-#         # Get original images
-#         images = (params.DataParams & {'data_params': key['ensemble_data']}).get_images(
-#             key['ensemble_dset'], split='val')
-        
-#         # Get reconstructions
-#         recons = (GradientOneReconstruction & (GradientValSet & key)).fetch('reconstruction', 
-#                                                                             order_by='image_class, image_id')
-        
-#         #TODO Should I fetch all validation classes and ids here and do the check here rather than ahve ValSet?
+    @property
+    def key_source(self):
+        return train.Ensemble * params.GradientParams & GradientOneReconstruction
 
-#         # Compute metrics
-#         val_mse = ((images - recons)**2).mean()
-#         val_corr = utils.compute_imagewise_correlation(images, recons)
+    def make(self, key):
+        # Get original images
+        dataparams = (params.DataParams & {'data_params': key['ensemble_data']})
+        images = dataparams.get_images(key['ensemble_dset'], split='test')
 
-#         # Insert
-#         self.insert1({**key, 'val_mse': val_mse, 'val_corr': val_corr})
+        # Get recons
+        im_restr = (data.Split.PerImage & dataparams &
+                    {'dset_id': key['ensemble_dset'], 'split': 'test'})
+        recons, image_classes = (GradientOneReconstruction & key & im_restr).fetch(
+            'reconstruction', 'image_class', order_by='image_class, image_id')
         
-#TODO: Same as valset and valEvaluation but for test
-class GradientTestSet():
-    pass
+        # Restrict to natural images
+        images = images[image_classes == 'imagenet']
+        recons = recons[image_classes == 'imagenet']
 
-class GradientEvaluation():
-    pass
+        # Compute MSE
+        mse = ((images - recons)**2).mean()
+        pixel_mse = ((images - recons)**2).mean(axis=0)
+
+        # Compute corrs
+        corr = utils.compute_imagewise_correlation(images, recons)
+        pixel_corr = utils.compute_pixelwise_correlation(images, recons)
+
+        # Insert
+        self.insert1({
+            **key, 'test_mse': mse, 'test_corr': corr, 'test_pixel_mse': pixel_mse,
+            'test_pixel_corr': pixel_corr})
 
 
 
