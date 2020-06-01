@@ -394,9 +394,13 @@ class GradientOneReconstruction(dj.Computed, Fillable):
 
         # Set up optimization function
         neural_resp = torch.as_tensor(resp, dtype=torch.float32, device='cuda')
-        if opt_params['similarity'] == 'negeuclidean':
+        if opt_params['similarity'] == 'negmse':
             similarity = fvutils.Compose([ops.MSE(neural_resp), ops.MultiplyBy(-1)])
-        else:
+        elif opt_params['similarity'] == 'cosine':
+            similarity = ops.CosineSimilarity(neural_resp)
+        elif opt_params['similarity'] == 'poisson_loglik':
+            similarity = ops.PoissonLogLikelihood(neural_resp)
+        else: 
             msg = 'Similarity metric {similarity} not implemented'.format(**opt_params)
             raise NotImplementedError(msg)
         obj_function = fvutils.Compose([model, similarity])
@@ -438,6 +442,9 @@ class GradientValEvaluation(dj.Computed):
     
     -> train.Ensemble
     -> params.GradientParams
+    ---
+    val_mse:            float       # validation MSE computed at the original resolution
+    val_corr:           float       # validation correlation computed at the original resolution
     """
 
     @property
