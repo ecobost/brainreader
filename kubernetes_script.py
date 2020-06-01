@@ -149,4 +149,4 @@
 # reconstructions.AHPValEvaluation.populate(reserve_jobs=True)
 
 from brainreader import reconstructions
-reconstructions.GradientOneReconstruction.fill_recons({'ensemble_dset': 5}, split='val')
+reconstructions.GradientOneReconstruction.fill_recons({'ensemble_dset=5 & gradient_params > 200', split='val')
