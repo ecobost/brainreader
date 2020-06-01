@@ -543,16 +543,47 @@ class GradientParams(dj.Lookup):
 
     @property
     def contents(self):
-        similarities = ['negeuclidean']#, 'cosine', 'poisson_lik'] # TODO: probably restrict to only one here
+        # mse similarity
         step_sizes = [100, 1000]
         jitters = [0, 1, 3, 5, 8]
-        sigmas = [0, 3, 5, 10, 15]  # TODO: 15 may be too much
+        sigmas = [0, 3, 5, 10, 15]
         l2_weights = [0, 1e-2]
-        fix_stds = [False, True]  # TODO: restrict to True only here
-        for i, (sim, ss, j, gs, l2, fs) in enumerate(
-                itertools.product(similarities, step_sizes, jitters, sigmas, l2_weights,
-                                  fix_stds), start=1):
+        fix_stds = [False, True]
+        for i, (ss, j, gs, l2, fs) in enumerate(
+                itertools.product(step_sizes, jitters, sigmas, l2_weights, fix_stds),
+                start=1):
             yield {
                 'gradient_params': i, 'seed': 2345, 'num_iterations': 1000,
-                'step_size': ss, 'similarity': sim, 'jitter': j, 'gradient_sigma': gs,
-                'l2_weight': l2, 'keep_std_fixed': fs}
+                'step_size': ss, 'similarity': 'negmse', 'jitter': j,
+                'gradient_sigma': gs, 'l2_weight': l2, 'keep_std_fixed': fs}
+        """
+        good combinations:
+        keep_std_fixed = True
+        l2_weight = 0 # smaller l2 than 1e-2 seems to have no effect either.
+        step_size = 1000 
+        Wants higher sigmas 
+        maybe drop jitter (does the say as gaussian blurring and seems irrelevant)
+        """
+
+        # Cosine similarity
+        step_sizes = [1000, 10000]
+        jitters = [0, 1, 3, 5, 8]
+        sigmas = [0, 3, 5, 10, 15]
+        l2_weights = [0]#, 1e-3]
+        for i, (ss, j, gs, l2) in enumerate(itertools.product(step_sizes, jitters, sigmas, l2_weights), start=1):
+            yield {
+                'gradient_params': i, 'seed': 2345, 'num_iterations': 1000,
+                'step_size': ss, 'similarity': 'cosine', 'jitter': j, 'gradient_sigma': gs,
+                'l2_weight': l2, 'keep_std_fixed': True}
+
+        # Poisson log likelihood similarity
+        step_sizes = [1000, 10000]
+        jitters = [0, 1, 3, 5, 8]
+        sigmas = [0, 3, 5, 10, 15]
+        l2_weights = [0]#, 1e-3]
+        for i, (ss, j, gs, l2) in enumerate(
+                itertools.product(step_sizes, jitters, sigmas, l2_weights), start=1):
+            yield {
+                'gradient_params': i, 'seed': 2345, 'num_iterations': 1000,
+                'step_size': ss, 'similarity': 'poisson_loglik', 'jitter': j, 'gradient_sigma': gs,
+                'l2_weight': l2, 'keep_std_fixed': True}
