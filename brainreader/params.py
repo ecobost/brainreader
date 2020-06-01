@@ -570,7 +570,7 @@ class GradientParams(dj.Lookup):
         jitters = [0, 1, 3, 5, 8]
         sigmas = [0, 3, 5, 10, 15]
         l2_weights = [0]#, 1e-3]
-        for i, (ss, j, gs, l2) in enumerate(itertools.product(step_sizes, jitters, sigmas, l2_weights), start=1):
+        for i, (ss, j, gs, l2) in enumerate(itertools.product(step_sizes, jitters, sigmas, l2_weights), start=i+1):
             yield {
                 'gradient_params': i, 'seed': 2345, 'num_iterations': 1000,
                 'step_size': ss, 'similarity': 'cosine', 'jitter': j, 'gradient_sigma': gs,
@@ -582,7 +582,7 @@ class GradientParams(dj.Lookup):
         sigmas = [0, 3, 5, 10, 15]
         l2_weights = [0]#, 1e-3]
         for i, (ss, j, gs, l2) in enumerate(
-                itertools.product(step_sizes, jitters, sigmas, l2_weights), start=1):
+                itertools.product(step_sizes, jitters, sigmas, l2_weights), start=i+1):
             yield {
                 'gradient_params': i, 'seed': 2345, 'num_iterations': 1000,
                 'step_size': ss, 'similarity': 'poisson_loglik', 'jitter': j, 'gradient_sigma': gs,
