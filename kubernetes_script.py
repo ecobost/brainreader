@@ -148,5 +148,8 @@
 # from brainreader import reconstructions
 # reconstructions.AHPValEvaluation.populate(reserve_jobs=True)
 
-from brainreader import reconstructions
-reconstructions.GradientOneReconstruction.fill_recons('ensemble_dset=5 AND gradient_params > 200', split='val')
+# from brainreader import reconstructions
+# reconstructions.GradientOneReconstruction.fill_recons('ensemble_dset=5 AND gradient_params > 200', split='val')
+
+# Populate linear model for dataset 4
+decoding.LinearModel.populate({'dset_id': 4}, reserve_jobs=True)
