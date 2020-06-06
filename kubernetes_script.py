@@ -152,4 +152,5 @@
 # reconstructions.GradientOneReconstruction.fill_recons('ensemble_dset=5 AND gradient_params > 200', split='val')
 
 # Populate linear model for dataset 4
+from brainreader import decoding
 decoding.LinearModel.populate({'dset_id': 4}, reserve_jobs=True)
