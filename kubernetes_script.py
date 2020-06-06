@@ -171,5 +171,11 @@ from brainreader import decoding
 from brainreader.encoding import train
 train.TrainedModel.populate({'dset_id': 4}, reserve_jobs=True)
 train.Evaluation.populate({'dset_id': 4}, reserve_jobs=True)
-train.Ensemble.populate(reserve_jobs=True)
-train.EnsembleEvaluation.populate(reserve_jobs=True)
+train.Ensemble.populate({'ensemble_dset': 4}, reserve_jobs=True)
+train.EnsembleEvaluation.populate({'ensemble_dset': 4}, reserve_jobs=True)
+
+# from brainreader import reconstructions
+# # Use val_corr in EnsembleEvaluation to add an entry in reconstructions.BestEnsemble
+# reconstructions.ModelResponses.populate({'ensemble_dset': 4}, reserve_jobs=True) # needs to be done only once per dset
+# reconstructions.AHPValEvaluation.populate({'ensemble_dset': 4})
+# reconstructions.AHPEvaluation.populate({'ensemble_dset': 4})
