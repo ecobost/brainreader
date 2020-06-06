@@ -154,3 +154,6 @@
 # Populate linear model for dataset 4
 from brainreader import decoding
 decoding.LinearModel.populate({'dset_id': 4}, reserve_jobs=True)
+decoding.LinearValEvaluation.populate({'dset_id': 4}, reserve_jobs=True)
+decoding.LinearReconstructions.populate({'dset_id': 4}, reserve_jobs=True})
+decoding.LinearEvaluation.populate({'dset_id': 4}, reserve_jobs=True)
