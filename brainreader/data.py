@@ -20,7 +20,7 @@ scans = [
     {'animal_id': 20892, 'session': 10, 'scan_idx': 10}, # small FOV, 4 areas 
     {'animal_id': 20892, 'session': 9, 'scan_idx': 10},
     {'animal_id': 20892, 'session': 9, 'scan_idx': 11},
-    {'animal_id': 23555, 'session': 26, 'scan_idx': 19}, # eye closed for 15 mins
+    {'animal_id': 23555, 'session': 26, 'scan_idx': 19}, # eye closed for 15 mins, also used test set for crossval so disregard
     {'animal_id': 23555, 'session': 26, 'scan_idx': 20},
     {'animal_id': 23656, 'session': 10, 'scan_idx': 20},
     {'animal_id': 23656, 'session': 10, 'scan_idx': 21},
