@@ -153,12 +153,17 @@
 
 # Populate linear model for dataset 4
 from brainreader import decoding
-decoding.LinearModel.populate({'dset_id': 4}, reserve_jobs=True)
-decoding.LinearValEvaluation.populate({'dset_id': 4}, reserve_jobs=True)
-decoding.LinearReconstructions.populate({'dset_id': 4}, reserve_jobs=True)
-decoding.LinearEvaluation.populate({'dset_id': 4}, reserve_jobs=True)
+# decoding.LinearModel.populate({'dset_id': 4}, reserve_jobs=True)
+# decoding.LinearValEvaluation.populate({'dset_id': 4}, reserve_jobs=True)
+# decoding.LinearReconstructions.populate({'dset_id': 4}, reserve_jobs=True)
+# decoding.LinearEvaluation.populate({'dset_id': 4}, reserve_jobs=True)
 
-decoding.MLPModel.populate({'dset_id': 4}, reserve_jobs=True)
-decoding.MLPValEvaluation.populate({'dset_id': 4}, reserve_jobs=True)
-decoding.MLPReconstructions.populate({'dset_id': 4}, reserve_jobs=True)
-decoding.MLPEvaluation.populate({'dset_id': 4}, reserve_jobs=True)
+# decoding.MLPModel.populate({'dset_id': 4}, reserve_jobs=True)
+# decoding.MLPValEvaluation.populate({'dset_id': 4}, reserve_jobs=True)
+# decoding.MLPReconstructions.populate({'dset_id': 4}, reserve_jobs=True)
+# decoding.MLPEvaluation.populate({'dset_id': 4}, reserve_jobs=True)
+
+decoding.GaborModel.populate({'dset_id': 4}, reserve_jobs=True)
+decoding.GaborValEvaluation.populate({'dset_id': 4}, reserve_jobs=True)
+decoding.GaborReconstructions.populate({'dset_id': 4}, reserve_jobs=True)
+decoding.GaborEvaluation.populate({'dset_id': 4}, reserve_jobs=True)
