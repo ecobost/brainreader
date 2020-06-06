@@ -151,7 +151,7 @@
 # from brainreader import reconstructions
 # reconstructions.GradientOneReconstruction.fill_recons('ensemble_dset=5 AND gradient_params > 200', split='val')
 
-# Populate linear model for dataset 4
+# Populate all models for dataset 4
 from brainreader import decoding
 # decoding.LinearModel.populate({'dset_id': 4}, reserve_jobs=True)
 # decoding.LinearValEvaluation.populate({'dset_id': 4}, reserve_jobs=True)
@@ -163,7 +163,13 @@ from brainreader import decoding
 # decoding.MLPReconstructions.populate({'dset_id': 4}, reserve_jobs=True)
 # decoding.MLPEvaluation.populate({'dset_id': 4}, reserve_jobs=True)
 
-decoding.GaborModel.populate({'dset_id': 4}, reserve_jobs=True)
-decoding.GaborValEvaluation.populate({'dset_id': 4}, reserve_jobs=True)
-decoding.GaborReconstructions.populate({'dset_id': 4}, reserve_jobs=True)
-decoding.GaborEvaluation.populate({'dset_id': 4}, reserve_jobs=True)
+# decoding.GaborModel.populate({'dset_id': 4}, reserve_jobs=True)
+# decoding.GaborValEvaluation.populate({'dset_id': 4}, reserve_jobs=True)
+# decoding.GaborReconstructions.populate({'dset_id': 4}, reserve_jobs=True)
+# decoding.GaborEvaluation.populate({'dset_id': 4}, reserve_jobs=True)
+
+from brainreader.encoding import train
+train.TrainedModel.populate({'dset_id': 4}, reserve_jobs=True)
+train.Evaluation.populate({'dset_id': 4}, reserve_jobs=True)
+train.Ensemble.populate(reserve_jobs=True)
+train.EnsembleEvaluation.populate(reserve_jobs=True)
