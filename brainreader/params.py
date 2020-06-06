@@ -587,3 +587,23 @@ class GradientParams(dj.Lookup):
                 'gradient_params': i, 'seed': 2345, 'num_iterations': 1000,
                 'step_size': ss, 'similarity': 'poisson_loglik', 'jitter': j, 'gradient_sigma': gs,
                 'l2_weight': l2, 'keep_std_fixed': True}
+
+
+@schema
+class GeneratorMNISTParams(dj.Lookup):
+    definition = """ # params for reconstructions with a generator prior
+    
+    mnistgen_params:    smallint
+    ---
+    seed:               smallint    # random seed used to obtain initial estimate
+    generator:          varchar(8)  # type of generator to use
+    step_size:          float       # step size for the optimization
+    num_iterations:     smallint    # number of iterations for this model
+    """
+    contents = [
+        {
+            'mnistgen_params': 1, 'seed': 6543, 'generator': 'gan', 'step_size': 1,
+            'num_iterations': 1000},
+        {
+            'mnistgen_params': 2, 'seed': 6453, 'generator': 'vae', 'step_size': 1,
+            'num_iterations': 1000}, ]

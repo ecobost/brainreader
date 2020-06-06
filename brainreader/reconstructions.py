@@ -2,6 +2,9 @@
 import datajoint as dj
 import torch
 import numpy as np
+import featurevis
+from featurevis import ops
+from featurevis import utils as fvutils
 
 from brainreader.encoding import train
 from brainreader import params
@@ -324,6 +327,7 @@ class AHPEvaluation(dj.Computed):
 ################################ GRADIENT BASED #########################################
 """ Gradient decoding."""
 
+#TODO: May not need this class, though I may need it for the OneReconstruction tables below but I only need to populate those tables for test set which I can add as a key_source restriction
 class Fillable:
     """ Small class that adds the ability to populate reconstruction classes restricting 
     to only certain split."""
@@ -361,10 +365,6 @@ class GradientOneReconstruction(dj.Computed, Fillable):
         #TODO: Could I limit this to validation/test images here
 
     def make(self, key):
-        import featurevis
-        from featurevis import ops
-        from featurevis import utils as fvutils
-
         # Get recorded responses to this image
         utils.log('Get target response')
         dataparams = params.DataParams & {'data_params': key['ensemble_data']}
@@ -400,7 +400,7 @@ class GradientOneReconstruction(dj.Computed, Fillable):
             similarity = ops.CosineSimilarity(neural_resp)
         elif opt_params['similarity'] == 'poisson_loglik':
             similarity = ops.PoissonLogLikelihood(neural_resp)
-        else: 
+        else:
             msg = 'Similarity metric {similarity} not implemented'.format(**opt_params)
             raise NotImplementedError(msg)
         obj_function = fvutils.Compose([model, similarity])
@@ -553,18 +553,136 @@ class GradientModelRecons():
 class GradientModelEval():
     pass
 
+##################################### GENERATOR #########################################
+""" Reconstruct as in Gradient params but with a generator in the front. """
+from brainreader import generators
+from torch.nn import functional as F
 
-#TODO: Repeat the same as above but with VAE on top
-class GradientVAEOneRecons():
-    pass
-class GradientVAEValReconstructions:
-    pass
-class GradientVAEValEvaluation():
-    pass
-class GradientVAEReconstructions():
-    pass
-class GradientVAEEvaluation():
-    pass
+
+class MNIST2Image:
+    """ Transforms an MNIST image into a normalized image as used for training.
+    
+    Takes a MNIST image (28 x 28) in [0, 1] range and transforms it into a normalized 
+    144 x 256 image (as were used for model training).
+    
+    Arguments:
+        train_mean (float): Mean of training images (used to normalize this image).
+        train_std (float): Std of training images (used to normalize this image). 
+    """
+    def __init__(self, train_mean, train_std):
+        self.train_mean = train_mean
+        self.train_std = train_std
+
+    @fvutils.varargin
+    def __call__(self, x):
+        # Rotate, upsample and pad
+        rotated = torch.rot90(x, dims=(-2, -1))
+        resized = F.interpolate(rotated, 144, mode='bilinear', align_corners=False)
+        padded = F.pad(resized, [(256 - 144) // 2, (256 - 144) // 2, 0, 0], value=-1)
+
+        # Normalize
+        image = padded * 255
+        norm = (image - self.train_mean) / self.train_std
+
+        return norm
+
+
+@schema
+class GeneratorMNISTReconstruction(dj.Computed):
+    definition = """ # create gradient reconstruction with a MNIST generator
+    
+    -> train.Ensemble
+    -> params.GeneratorMNISTParams
+    -> data.Scan.Image.proj(ensemble_dset='dset_id')
+    ---
+    recons_z:       longblob        # final hidden vector obtained
+    recons_digit:   longblob        # final MNIST digit obtained
+    recons_image:   longblob        # final image reconstruction
+    sim_value:      float           # final similarity measure between target and recorded responses
+    """
+
+    @property
+    def key_source(self):
+        all_keys = (train.Ensemble * params.GeneratorMNISTParams *
+                    data.Scan.Image.proj(ensemble_dset='dset_id'))
+        return all_keys & BestEnsemble & {'image_class': 'mnist'}
+
+    def make(self, key):
+        import featurevis
+        from featurevis import ops
+        from featurevis import utils as fvutils
+
+        # Get recorded responses to this image
+        utils.log('Get target response')
+        dataparams = params.DataParams & {'data_params': key['ensemble_data']}
+        responses = dataparams.get_responses(key['ensemble_dset'],
+                                             split=None)  # all images
+        im_classes, im_ids = (data.Scan.Image & {'dset_id': key['ensemble_dset']}).fetch(
+            'image_class', 'image_id', order_by='image_class, image_id')
+        im_mask = np.logical_and(im_classes == key['image_class'],
+                                 im_ids == key['image_id'])
+        resp = responses[im_mask]  # 1 x num_cells
+
+        # Get train stats (needed for normalization below)
+        train_images = (
+            data.Image &
+            (data.Split.PerImage & {'dset_id': key['ensemble_dset'], 'split': 'train'} &
+             dataparams)).fetch('image')
+        train_images = np.stack(train_images).astype(np.float32)
+        train_mean = train_images.mean()
+        train_std = train_images.std(axis=(-1, -2)).mean()
+
+        # Get encoding model
+        utils.log('Instantiating model')
+        model = (train.Ensemble & key).get_model()
+        model.eval()
+        model.cuda()
+
+        # Get some params
+        opt_params = (params.GeneratorMNISTParams & key).fetch1()
+
+        # Get generator
+        generator = (generators.get_mnist_gan()
+                     if opt_params['generator'] == 'gan' else generators.get_mnist_vae())
+        generator.eval()
+        generator.cuda()
+
+        # Set up initial hidden vector
+        torch.manual_seed(opt_params['seed'])
+        z_shape = (1, 100, 1, 1) if opt_params['generator'] == 'gan' else (1, 20)
+        initial_z = torch.randn(*z_shape, dtype=torch.float32, device='cuda')
+
+        # Set up optimization function
+        utils.log('Set up optimization')
+        neural_resp = torch.as_tensor(resp[None, :], dtype=torch.float32, device='cuda')
+        similarity = ops.PoissonLogLikelihood(neural_resp)
+        mnist2image = MNIST2Image(train_mean, train_std)
+        obj_function = fvutils.Compose([generator, mnist2image, model, similarity])
+
+        # Optimize
+        utils.log('Optimize')
+        z, fevals, _ = featurevis.gradient_ascent(
+            obj_function,
+            initial_z,
+            step_size=opt_params['step_size'],
+            num_iterations=opt_params['num_iterations'],
+        )
+        with torch.no_grad():
+            digit = generator(z)
+            recon = mnist2image(digit)
+        z = z.cpu().numpy()
+        digit = digit.mean(0).squeeze().cpu().numpy()
+        recon = recon.mean(0).squeeze().cpu().numpy()
+        final_f = fevals[-1]
+
+        # Check for divergence
+        if np.isnan(final_f) or np.isinf(final_f):
+            raise ValueError('Objective function diverged!')
+
+        # Insert
+        self.insert1({
+            **key, 'recons_z': z, 'recons_digit': digit, 'recons_image': recon,
+            'sim_value': final_f})
 
 
 

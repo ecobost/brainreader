@@ -5,7 +5,7 @@ from scipy import ndimage
 import torch
 
 from brainreader import decoding
-from brainreader import mnist_model
+from brainreader import mnist_classifier
 from brainreader import utils
 from brainreader import reconstructions
 
@@ -136,7 +136,7 @@ class LinearEvaluation(dj.Computed):
         xent = -xent.mean()
 
         # Classify the digits
-        pred_labels = mnist_model.classify(recons)
+        pred_labels = mnist_classifier.classify(recons)
         accuracy = (labels == pred_labels).mean()
 
         # Insert
@@ -182,7 +182,7 @@ class MLPEvaluation(dj.Computed):
         xent = -xent.mean()
 
         # Classify the digits
-        pred_labels = mnist_model.classify(recons)
+        pred_labels = mnist_classifier.classify(recons)
         accuracy = (labels == pred_labels).mean()
 
         # Insert
@@ -229,7 +229,7 @@ class GaborEvaluation(dj.Computed):
         xent = -xent.mean()
 
         # Classify the digits
-        pred_labels = mnist_model.classify(recons)
+        pred_labels = mnist_classifier.classify(recons)
         accuracy = (labels == pred_labels).mean()
 
         # Insert
@@ -276,7 +276,7 @@ class AHPEvaluation(dj.Computed):
         xent = -xent.mean()
 
         # Classify the digits
-        pred_labels = mnist_model.classify(recons)
+        pred_labels = mnist_classifier.classify(recons)
         accuracy = (labels == pred_labels).mean()
 
         # Insert
@@ -284,8 +284,54 @@ class AHPEvaluation(dj.Computed):
             **key, 'mse': mse, 'corr': corr, 'binary_xent': xent,
             'class_accuracy': accuracy})
 
-###### TODO: Gradient reconstruction
-# To reconstruct mnist pass the prediction through a sigmoid and compute binary_xent (i.e. plog(p') +(1-p) log(-p'))
-# class MNISTReconstruction
-# Use a MNIST generator as a prior likelihood
-# use one off the shefla one and just resie the input and rotate them the same way the stimulus was generated
+from brainreader.encoding import train
+from brainreader import params
+
+@schema
+class GeneratorEvaluation(dj.Computed):
+    definition = """ # evaluate gabor reconstruction of MNIST digits
+    
+    -> train.Ensemble
+    -> params.GeneratorMNISTParams
+    ---
+    mse:        float           # pixel-wise MSE
+    corr:       float           # avg correlation across images
+    binary_xent:float           # average of binary cross-entropy between MNIST digit and reconstruction
+    class_accuracy:float        # average accuracy of an MNIST classifier on the reconstructed images
+    """
+
+    @property
+    def key_source(self):
+        all_keys = train.Ensemble * params.GeneratorMNISTParams
+        return all_keys & (reconstructions.GeneratorMNISTReconstruction & {'image_class': 'mnist'})
+
+    def make(self, key):
+        # Get reconstructions
+        recons_rel = (reconstructions.GeneratorMNISTReconstruction & key &
+                      {'image_class': 'mnist'})
+        if len(recons_rel) != 10:
+            raise ValueError('Some digits may have not been processed yet')
+        recons = recons_rel.fetch('recons_digit', order_by='image_id')
+        recons = np.stack(recons)
+
+        # Get original digits
+        images, labels = (Digits & recons_rel.proj(mnist_id='image_id')).fetch(
+            'image', 'label', order_by='mnist_id')
+        images = np.stack([im.astype(np.float32) / 255 for im in images])
+
+        # Compute MSE and correlation
+        mse = ((images - recons)**2).mean()
+        corr = utils.compute_imagewise_correlation(images, recons)
+
+        # Compute binary cross entropy
+        xent = images * np.log(recons + 1e-8) + (1 - images) * np.log(1 - recons + 1e-8)
+        xent = -xent.mean()
+
+        # Classify the digits
+        pred_labels = mnist_classifier.classify(recons)
+        accuracy = (labels == pred_labels).mean()
+
+        # Insert
+        self.insert1({
+            **key, 'mse': mse, 'corr': corr, 'binary_xent': xent,
+            'class_accuracy': accuracy})
