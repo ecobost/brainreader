@@ -163,10 +163,10 @@ from brainreader import decoding
 # decoding.MLPReconstructions.populate({'dset_id': 4}, reserve_jobs=True)
 # decoding.MLPEvaluation.populate({'dset_id': 4}, reserve_jobs=True)
 
-decoding.GaborModel.populate({'dset_id': 4}, reserve_jobs=True)
-decoding.GaborValEvaluation.populate({'dset_id': 4}, reserve_jobs=True)
-decoding.GaborReconstructions.populate({'dset_id': 4}, reserve_jobs=True)
-decoding.GaborEvaluation.populate({'dset_id': 4}, reserve_jobs=True)
+# decoding.GaborModel.populate({'dset_id': 4}, reserve_jobs=True)
+# decoding.GaborValEvaluation.populate({'dset_id': 4}, reserve_jobs=True)
+# decoding.GaborReconstructions.populate({'dset_id': 4}, reserve_jobs=True)
+# decoding.GaborEvaluation.populate({'dset_id': 4}, reserve_jobs=True)
 
 # from brainreader.encoding import train
 # train.TrainedModel.populate({'dset_id': 4}, reserve_jobs=True)
@@ -176,6 +176,11 @@ decoding.GaborEvaluation.populate({'dset_id': 4}, reserve_jobs=True)
 
 from brainreader import reconstructions
 # Use val_corr in EnsembleEvaluation to add an entry in reconstructions.BestEnsemble
-reconstructions.ModelResponses.populate({'ensemble_dset': 4}, reserve_jobs=True) # needs to be done only once per dset
-reconstructions.AHPValEvaluation.populate({'ensemble_dset': 4}, reserve_jobs=True)
-reconstructions.AHPEvaluation.populate({'ensemble_dset': 4}, reserve_jobs=True)
+# reconstructions.ModelResponses.populate({'ensemble_dset': 4}, reserve_jobs=True) # needs to be done only once per dset
+# reconstructions.AHPValEvaluation.populate({'ensemble_dset': 4}, reserve_jobs=True)
+# reconstructions.AHPEvaluation.populate({'ensemble_dset': 4}, reserve_jobs=True)
+
+
+reconstructions.GradientOneReconstructions.fill_recons({'ensemble_dset': 4}, split='test')
+reconstructions.GradientOneReconstructions.fill_recons({'ensemble_dset': 4}, split='val')
+reconstructions.GradientEvaluation.populate({'ensemble_dset': 4}, reserve_jobs=True)
