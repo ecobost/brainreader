@@ -181,6 +181,7 @@ from brainreader import reconstructions
 # reconstructions.AHPEvaluation.populate({'ensemble_dset': 4}, reserve_jobs=True)
 
 
-reconstructions.GradientOneReconstructions.fill_recons({'ensemble_dset': 4}, split='test')
-reconstructions.GradientOneReconstructions.fill_recons({'ensemble_dset': 4}, split='val')
+reconstructions.GradientOneReconstruction.fill_recons({'ensemble_dset': 4}, split='test')
+reconstructions.GradientOneReconstruction.fill_recons({'ensemble_dset': 4}, split='val')
+reconstructions.GradientValEvaluation.populate({'ensemble_dset': 4}, reserve_jobs=True)
 reconstructions.GradientEvaluation.populate({'ensemble_dset': 4}, reserve_jobs=True)
