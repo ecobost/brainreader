@@ -153,13 +153,13 @@
 
 # Populate all models for dataset 4
 from brainreader import decoding
-# decoding.LinearModel.populate({'dset_id': 4}, reserve_jobs=True)
-# decoding.LinearValEvaluation.populate({'dset_id': 4}, reserve_jobs=True)
+decoding.LinearModel.populate(reserve_jobs=True)
+decoding.LinearValEvaluation.populate(reserve_jobs=True)
 # decoding.LinearReconstructions.populate({'dset_id': 4}, reserve_jobs=True)
 # decoding.LinearEvaluation.populate({'dset_id': 4}, reserve_jobs=True)
 
-# decoding.MLPModel.populate({'dset_id': 4}, reserve_jobs=True)
-# decoding.MLPValEvaluation.populate({'dset_id': 4}, reserve_jobs=True)
+decoding.MLPModel.populate(reserve_jobs=True)
+decoding.MLPValEvaluation.populate(reserve_jobs=True)
 # decoding.MLPReconstructions.populate({'dset_id': 4}, reserve_jobs=True)
 # decoding.MLPEvaluation.populate({'dset_id': 4}, reserve_jobs=True)
 
