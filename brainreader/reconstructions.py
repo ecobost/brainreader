@@ -21,16 +21,17 @@ class BestEnsemble(dj.Lookup):
     definition = """ # collect the best ensemble models for each dataset
     -> train.Ensemble
     """
-    contents = [
-        {
-            'ensemble_dset': 1, 'ensemble_data': 2, 'ensemble_model': 12,
-            'ensemble_training': 7, 'ensemble_params': 1},
-        {
-            'ensemble_dset': 4, 'ensemble_data': 2, 'ensemble_model': 12,
-            'ensemble_training': 7, 'ensemble_params': 1},
-        {
-            'ensemble_dset': 5, 'ensemble_data': 2, 'ensemble_model': 12,
-            'ensemble_training': 7, 'ensemble_params': 1}, ]
+    @property
+    def contents(self):
+        for i in range(1, 9):
+            yield {'ensemble_dset': i, 'ensemble_data': 2, 'ensemble_model': 12,
+                   'ensemble_training': 7, 'ensemble_params': 1}
+        yield {
+            'ensemble_dset': 9, 'ensemble_data': 2, 'ensemble_model': 12,
+            'ensemble_training': 3, 'ensemble_params': 1}
+        yield {
+            'ensemble_dset': 10, 'ensemble_data': 2, 'ensemble_model': 12,
+            'ensemble_training': 1, 'ensemble_params': 1}
 
 
 ###############################Averaged high posterior ##################################
