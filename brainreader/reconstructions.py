@@ -612,7 +612,7 @@ class GeneratorMNISTReconstruction(dj.Computed):
     def key_source(self):
         all_keys = (train.Ensemble * params.GeneratorMNISTParams *
                     data.Scan.Image.proj(ensemble_dset='dset_id'))
-        return all_keys & BestEnsemble & {'image_class': 'mnist'}
+        return all_keys & BestEnsemble & {'image_class': 'mnist', 'mnistgen_params': 2}
 
     def make(self, key):
         import featurevis
