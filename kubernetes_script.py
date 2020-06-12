@@ -178,7 +178,7 @@
 # train.Ensemble.populate(reserve_jobs=True)
 # train.EnsembleEvaluation.populate(reserve_jobs=True)
 
- from brainreader import decoding
+from brainreader import decoding
 # decoding.LinearModel.populate(reserve_jobs=True)
 # decoding.LinearValEvaluation.populate(reserve_jobs=True)
 decoding.MLPModel.populate(reserve_jobs=True)
