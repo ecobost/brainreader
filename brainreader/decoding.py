@@ -867,7 +867,7 @@ class GaborModel(dj.Computed):
     @property
     def key_source(self):
         all_keys = data.Scan * params.DataParams * params.GaborParams.proj()
-        return all_keys & {'data_params': 1} #&(params.GaborParams & {'gabor_set': 1, 'l1_weight': 0})# & 'gabor_params < 81'
+        return all_keys & {'data_params': 1} & 'gabor_params < 81'
 
     def make(self, key):
         # Get training data
