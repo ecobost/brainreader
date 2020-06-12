@@ -122,46 +122,34 @@ def get_mnist_vae(download_path='/mnt/scratch07/ecobost/generators/vae_epoch_25.
     return generator
 
 
+##########################################################################################
+""" Pretrained BigGAN model from:
+    https://github.com/huggingface/pytorch-pretrained-BigGAN
+    
+Install it as:
+    pip3 install pytorch-pretrained-biggan
+"""
 
+# from pytorch_pretrained_biggan import BigGAN
 
+# class BigGANWrapper(BigGAN):
+#     """ Wraps the original BigGAN module to modify the forward. """
+#     def forward(self, z):
+#         """ Modified forward to work on a single 256-dim vector in N(0, 1)."""
+#         truncated_noise = torch.tanh(z[:, :128]) * self._truncation * 2 # this 2 
+#         class_vector = z[:, 128:] * 0.06 # embeddings have ~this std
+#         new_z = torch.cat((truncated_noise, class_vector), dim=1)
+#         return self.generator(new_z, self._truncation)
 
-# import datajoint as dj
-
-# from brainreader import data
-
-
-# #NO NEED TO TRAIN MY OWN, COULD USe AVAE for IMAGENEt and just crop in the cenetr and make grayscale
-# # before sending through model.
-# # the one downside is tht that image i am trying to reconstruct probably was part of the vae training (maybe, or maybe our images come from the test set of imagenet
-# #
-# # also when using the VAE make sure you are able to generate blank reconstructions too.
-
-# schema = ...
-
-# @schema
-# class Data(dj.Computed):
-#     definition = """ # processed images ready to use for VAE training
-#     -> data.ImageSet
-#     ---
-#     images:     blob@external       # images (num_images x height x widht)
-#     im_mean:    float               # mean across images
-#     im_std:     float               # std across images
+# def get_biggan(cache_dir='/mnt/scratch07/ecobost/generators/', truncation=0.6):
+#     """ Get the pretrained BigGAN.
+    
+#     Arguments:
+#         cache_dir (string): Where to save the model
+#         truncation (float): Between (0, 1], how to truncate the noise values. Bigger 
+#             values produce more diverse (but worse looking) samples. Value of 1 actually
+#             truncates the normal at (-2, 2) (odd but that's how it's been defined).
 #     """
-#     def make(self, key):
-#         """ this preprocessing should match what we used to train the models"""
-
-#         # Set some params
-#         height = 144
-#         widht = 256
-
-#         # Get images
-#         images = (data.ImageSet & key).get_images()
-#         imagfes as float # this could be 17 GB (according to my calculations), may not have enough memory to keep it all in memory
-
-#         # Resize
-#         UTILS.RESIZE()
-#         #TODO: Finish this
-
-#         # Normalize (using training set only)
-
-#         # Insert
+#     model = BigGANWrapper.from_pretrained('biggan-deep-256', cache_dir=cache_dir)
+#     model._truncation = truncation
+#     return model
