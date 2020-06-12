@@ -181,8 +181,8 @@
 from brainreader import decoding
 # decoding.LinearModel.populate(reserve_jobs=True)
 # decoding.LinearValEvaluation.populate(reserve_jobs=True)
-decoding.MLPModel.populate(reserve_jobs=True)
-decoding.MLPValEvaluation.populate(reserve_jobs=True)
+# decoding.MLPModel.populate(reserve_jobs=True)
+# decoding.MLPValEvaluation.populate(reserve_jobs=True)
 decoding.DeconvModel.populate(reserve_jobs=True)
 decoding.DeconvValEvaluation.populate(reserve_jobs=True)
 decoding.GaborModel.populate(reserve_jobs=True)
