@@ -545,7 +545,7 @@ class DeconvNetwork(nn.Module):
     def forward(self, x):
         recons = self.layers(x.view(*x.shape, 1, 1)) + self.last_bias
         if self.out_dims is not None:
-            recons = F.interpolate(recons, size=self.out_dims, mode='bilinear', 
+            recons = F.interpolate(recons, size=self.out_dims, mode='bilinear',
                                     align_corners=False)
         return recons
 
@@ -758,91 +758,89 @@ class DeconvValEvaluation(dj.Computed):
             'val_corr': val_corr, 'resized_val_corr': resized_val_corr})
 
 
-# @schema
-# class MLPReconstructions(dj.Computed):
-#     definition = """ # reconstructions for test set images (activity averaged across repeats)
+@schema
+class DeconvReconstructions(dj.Computed):
+    definition = """ # reconstructions for test set images (activity averaged across repeats)
 
-#     -> MLPModel
-#     """
+    -> DeconvModel
+    """
 
-#     class Reconstruction(dj.Part):
-#         definition = """ # reconstruction for a single image
-#         -> master
-#         -> data.Scan.Image
-#         ---
-#         recons:           longblob
-#         """
+    class Reconstruction(dj.Part):
+        definition = """ # reconstruction for a single image
+        -> master
+        -> data.Scan.Image
+        ---
+        recons:           longblob
+        """
 
-#     def make(self, key):
-#         # Get data
-#         responses = (params.DataParams & key).get_responses(key['dset_id'], split='test')
+    def make(self, key):
+        # Get data
+        responses = (params.DataParams & key).get_responses(key['dset_id'], split='test')
 
-#         # Get model
-#         model = (MLPModel & key).get_model()
-#         model.cuda()
+        # Get model
+        model = (DeconvModel & key).get_model()
+        model.cuda()
+        model.eval()
 
-#         # Create reconstructions
-#         with torch.no_grad():
-#             recons = model(torch.as_tensor(responses, dtype=torch.float32, device='cuda'))
-#             recons = recons.cpu().numpy()
+        # Create reconstructions
+        with torch.no_grad():
+            recons = model(torch.as_tensor(responses, dtype=torch.float32, device='cuda'))
+            recons = recons.squeeze(1).cpu().numpy()
 
-#         # Resize to orginal dimensions (144 x 256)
-#         old_h, old_w = (params.MLPData & (params.MLPParams & key)).fetch1(
-#             'image_height', 'image_width')
-#         new_h, new_w = (params.DataParams & key).fetch1('image_height', 'image_width')
-#         recons = recons.reshape(-1, old_h, old_w)
-#         recons = utils.resize(recons, new_h, new_w)
+        # Resize to orginal dimensions (144 x 256)
+        h, w = (params.DataParams & key).fetch1('image_height', 'image_width')
+        recons = utils.resize(recons, h, w)
 
-#         # Find out image ids of test set images
-#         split_rel = (data.Split.PerImage & key & (params.DataParams & key) &
-#                      {'split': 'test'})
-#         image_classes, image_ids = split_rel.fetch('image_class', 'image_id',
-#                                                    order_by='image_class, image_id')
+        # Find out image ids of test set images
+        split_rel = (data.Split.PerImage & key & (params.DataParams & key) &
+                     {'split': 'test'})
+        image_classes, image_ids = split_rel.fetch('image_class', 'image_id',
+                                                   order_by='image_class, image_id')
 
-#         # Insert
-#         self.insert1(key)
-#         self.Reconstruction.insert(
-#             [{**key, 'image_class': ic, 'image_id': id_, 'recons': r}
-#              for ic, id_, r in zip(image_classes, image_ids, recons)])
+        # Insert
+        self.insert1(key)
+        self.Reconstruction.insert(
+            [{**key, 'image_class': ic, 'image_id': id_, 'recons': r}
+             for ic, id_, r in zip(image_classes, image_ids, recons)])
 
 
-# @schema
-# class MLPEvaluation(dj.Computed):
-#     definition = """ # evaluate mlp model reconstructions in natural images in test set
+@schema
+class DeconvEvaluation(dj.Computed):
+    definition = """ # evaluate mlp model reconstructions in natural images in test set
 
-#     -> MLPReconstructions
-#     ---
-#     test_mse:       float       # average MSE across all image
-#     test_corr:      float       # average correlation (computed per image and averaged across images)
-#     test_pixel_mse: longblob    # pixel-wise MSE (computed per pixel, averaged across images)
-#     test_pixel_corr:longblob    # pixel-wise correlation (computed per pixel across images)
-#     """
+    -> DeconvReconstructions
+    ---
+    test_mse:       float       # average MSE across all image
+    test_corr:      float       # average correlation (computed per image and averaged across images)
+    test_pixel_mse: longblob    # pixel-wise MSE (computed per pixel, averaged across images)
+    test_pixel_corr:longblob    # pixel-wise correlation (computed per pixel across images)
+    """
 
-#     def make(self, key):
-#         # Get original images
-#         images = (params.DataParams & key).get_images(key['dset_id'], split='test')
+    def make(self, key):
+        # Get original images
+        images = (params.DataParams & key).get_images(key['dset_id'], split='test')
 
-#         # Get reconstructions
-#         recons, image_classes = (MLPReconstructions.Reconstruction & key).fetch(
-#             'recons', 'image_class', order_by='image_class, image_id')
-#         recons = np.stack(recons)
+        # Get reconstructions
+        recons, image_classes = (DeconvReconstructions.Reconstruction & key).fetch(
+            'recons', 'image_class', order_by='image_class, image_id')
+        recons = np.stack(recons)
 
-#         # Restrict to natural images
-#         images = images[image_classes == 'imagenet']
-#         recons = recons[image_classes == 'imagenet']
+        # Restrict to natural images
+        images = images[image_classes == 'imagenet']
+        recons = recons[image_classes == 'imagenet']
 
-#         # Compute MSE
-#         mse = ((images - recons)**2).mean()
-#         pixel_mse = ((images - recons)**2).mean(axis=0)
+        # Compute MSE
+        mse = ((images - recons)**2).mean()
+        pixel_mse = ((images - recons)**2).mean(axis=0)
 
-#         # Compute corrs
-#         corr = utils.compute_imagewise_correlation(images, recons)
-#         pixel_corr = utils.compute_pixelwise_correlation(images, recons)
+        # Compute corrs
+        corr = utils.compute_imagewise_correlation(images, recons)
+        pixel_corr = utils.compute_pixelwise_correlation(images, recons)
 
-#         # Insert
-#         self.insert1({
-#             **key, 'test_mse': mse, 'test_corr': corr, 'test_pixel_mse': pixel_mse,
-#             'test_pixel_corr': pixel_corr})
+        # Insert
+        self.insert1({
+            **key, 'test_mse': mse, 'test_corr': corr, 'test_pixel_mse': pixel_mse,
+            'test_pixel_corr': pixel_corr})
 
 
 ################################## Gabor decoding #######################################
