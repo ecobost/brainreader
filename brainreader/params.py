@@ -332,6 +332,68 @@ class MLPParams(dj.Lookup):
             yield {
                 'mlp_params': i, 'mlp_data': d, 'mlp_architecture': a, 'mlp_training': t}
 
+@schema
+class DeconvArchitecture(dj.Lookup):
+    definition = """ # architectural params for deconvolution network
+    
+    deconv_architecture:   smallint
+    ---
+    layer_sizes:        blob        # number of feature maps in each hidden layer
+    """
+    contents = [(1, [512, 256, 128, 64, 32])]
+
+
+@schema
+class DeconvTraining(dj.Lookup):
+    definition = """ # training hyperparams for mlp
+    
+    deconv_training:       smallint
+    ---
+    learning_rate:      float       # initial learning rate for the optimization
+    l2_weight:          float       # weight for the l2 regularization
+    """
+
+    @property
+    def contents(self):
+        lrs = [1e-4, 1e-3]
+        l2_weights = [0, 1e-6, 1e-5, 1e-4, 1e-3, 1e-2, 1e-1]
+        for i, (lr, l2) in enumerate(itertools.product(lrs, l2_weights), start=1):
+            yield {'deconv_training': i, 'learning_rate': lr, 'l2_weight': l2}
+
+
+@schema
+class DeconvData(dj.Lookup):
+    definition = """ # data specific params
+    
+    deconv_data:           smallint
+    ---
+    image_height:       smallint            # height of the image to predict
+    image_width:        smallint            # width of the image to predict
+    """
+    contents = [(4, 144, 256)]
+
+
+@schema
+class DeconvParams(dj.Lookup):
+    definition = """ # parameters to train a deconvolution network
+    
+    deconv_params:         smallint
+    ---
+    -> DeconvData
+    -> DeconvArchitecture
+    -> DeconvTraining
+    """
+
+    @property
+    def contents(self):
+        for i, (d, a, t) in enumerate(
+                itertools.product(DeconvData.fetch('deconv_data'),
+                                  DeconvArchitecture.fetch('deconv_architecture'),
+                                  DeconvTraining.fetch('deconv_training')), start=1):
+            yield {
+                'deconv_params': i, 'deconv_data': d, 'deconv_architecture': a,
+                'deconv_training': t}
+
 
 @schema
 class GaborSet(dj.Lookup):
@@ -607,3 +669,18 @@ class GeneratorMNISTParams(dj.Lookup):
         {
             'mnistgen_params': 2, 'seed': 6453, 'generator': 'vae', 'step_size': 1,
             'num_iterations': 1000}, ]
+
+
+# @schema
+# class GeneratorNaturalParams(dj.Lookup):
+#     definition = """ # params for reconstructions with a generator prior
+
+#     natgen_params:    smallint
+#     ---
+#     seed:               smallint    # random seed used to obtain initial estimate
+#     step_size:          float       # step size for the optimization
+#     num_iterations:     smallint    # number of iterations for this model
+#     truncate_at:        float       # truncate the normal noise at this value (between 0-1)
+#     """
+#     contents = [{'natgen_params': 1, 'seed': 6543, 'step_size': 1, 'num_iterations': 1000,
+#                  'truncate_at': 0.7}]
