@@ -90,10 +90,10 @@ def recons2mnist(recons):
     rotated = np.rot90(resized, k=-1, axes=(-2, -1))
 
     # Binarize
-    # binarized = 1 / (1 + np.exp(-rotated)) # sigmoid
-    min_per_image = rotated.min(axis=(-1, -2), keepdims=True)
-    max_per_image = rotated.max(axis=(-1, -2), keepdims=True)
-    binarized = (rotated - min_per_image) / (max_per_image - min_per_image)
+    binarized = (np.tanh(rotated) + 1) / 2
+    # min_per_image = rotated.min(axis=(-1, -2), keepdims=True)
+    # max_per_image = rotated.max(axis=(-1, -2), keepdims=True)
+    # binarized = (rotated - min_per_image) / (max_per_image - min_per_image)
 
     return binarized
 
@@ -164,6 +164,53 @@ class MLPEvaluation(dj.Computed):
     def make(self, key):
         # Get reconstructions
         recons_rel = (decoding.MLPReconstructions.Reconstruction & key &
+                      {'image_class': 'mnist'})
+        recons = recons_rel.fetch('recons', order_by='image_id')
+        recons = recons2mnist(np.stack(recons))
+
+        # Get original digits
+        images, labels = (Digits & recons_rel.proj(mnist_id='image_id')).fetch(
+            'image', 'label', order_by='mnist_id')
+        images = np.stack([im.astype(np.float32) / 255 for im in images])
+
+        # Compute MSE and correlation
+        mse = ((images - recons)**2).mean()
+        corr = utils.compute_imagewise_correlation(images, recons)
+
+        # Compute binary cross entropy
+        xent = images * np.log(recons + 1e-8) + (1 - images) * np.log(1 - recons + 1e-8)
+        xent = -xent.mean()
+
+        # Classify the digits
+        pred_labels = mnist_classifier.classify(recons)
+        accuracy = (labels == pred_labels).mean()
+
+        # Insert
+        self.insert1({
+            **key, 'mse': mse, 'corr': corr, 'binary_xent': xent,
+            'class_accuracy': accuracy})
+
+
+@schema
+class DeconvEvaluation(dj.Computed):
+    definition = """ # evaluate deconv network reconstruction of MNIST digits
+    
+    -> decoding.DeconvReconstructions
+    ---
+    mse:        float           # pixel-wise MSE
+    corr:       float           # avg correlation across images
+    binary_xent:float           # average of binary cross-entropy between MNIST digit and reconstruction
+    class_accuracy:float        # average accuracy of an MNIST classifier on the reconstructed images
+    """
+
+    @property
+    def key_source(self):
+        return (decoding.DeconvReconstructions &
+                (decoding.DeconvReconstructions.Reconstruction & {'image_class': 'mnist'}))
+
+    def make(self, key):
+        # Get reconstructions
+        recons_rel = (decoding.DeconvReconstructions.Reconstruction & key &
                       {'image_class': 'mnist'})
         recons = recons_rel.fetch('recons', order_by='image_id')
         recons = recons2mnist(np.stack(recons))
