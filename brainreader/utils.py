@@ -2,7 +2,7 @@ from scipy import ndimage
 import numpy as np
 import time
 import torch
-
+from scipy import signal
 
 def resize(images, desired_height=72, desired_width=128, order=1):
     """ Resize images to the desired height and width.
@@ -83,7 +83,7 @@ def compute_pixelwise_correlation(images1, images2):
             pixel.
     """
     num_images, height, width = images1.shape
-    corrs = compute_correlation(images1.reshape(num_images, -1).T, 
+    corrs = compute_correlation(images1.reshape(num_images, -1).T,
                                 images2.reshape(num_images, -1).T)
 
     return corrs.reshape(height, width)
@@ -200,3 +200,50 @@ def create_gabor(height, width, orientation, phase, wavelength, sigma, dx=0, dy=
     gabor = gauss * sin
 
     return gabor
+
+
+def bandpass_filter(images, low_freq=0, high_freq=0.1, filt_type='butterworth',
+                    butt_order=5, eps=1e-8):
+    """ Bandpass filter images to only contain freqs in the desired range.
+    
+    Arguments:
+        images (np.array): Array of images.
+        low_freq (float): Lower cutoff for frequency range (should be in [0, 0.5) range).
+        high_freq (float): Higher cutoff for frequencies (should be in (0, 0.5] range).
+        filt_type (string): 'ideal' or 'butterworth' for the type of filter to use.
+        butt_order (int): Order of the butterworth filter (unused for ideal filter).
+        eps (float): Small number to avoid division by zero.
+    
+    Returns:
+        filt_images (np.array): Array with the filtered images.
+        
+    Reference:
+        http://faculty.salina.k-state.edu/tim/mVision/freq-domain/freq_filters.html#band-reject-filters
+    """
+    h, w = images.shape[-2:]
+
+    # Mask images to avoid edge effects
+    mask = np.outer(signal.tukey(h, 0.3), signal.tukey(w, 0.3))
+    mask = mask / mask.sum()
+    masked = (images - images.mean(axis=(-1, -2), keepdims=True)) * mask
+
+    # Create filter
+    freqs = np.sqrt(np.fft.fftfreq(h)[:, None]**2 + np.fft.rfftfreq(w)[None, :]**2)
+    if filt_type == 'ideal':
+        filt = np.zeros_like(freqs)
+        filt[np.logical_and(freqs >= low_freq, freqs < high_freq)] = 1
+    elif filt_type == 'butterworth':
+        if low_freq <= 0:  # low-pass filter
+            filt = 1 / (1 + (freqs / high_freq)**(2 * butt_order))
+        else:  # band-pass
+            d0 = low_freq + (high_freq - low_freq) / 2
+            w = high_freq - low_freq
+            filt = 1 - (1 / (1 + ((freqs * w) /
+                                  (freqs**2 - d0**2 + eps))**(2 * butt_order)))
+    else:
+        raise NotImplementedError(f'Filter type {filt_type} not recognized')
+
+    # Compute fft, filter and return to spatial domain
+    filt_images = [np.fft.irfft2(filt * np.fft.rfft2(im)) for im in masked]
+
+    return np.stack(filt_images)

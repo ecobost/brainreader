@@ -684,3 +684,19 @@ class GeneratorMNISTParams(dj.Lookup):
 #     """
 #     contents = [{'natgen_params': 1, 'seed': 6543, 'step_size': 1, 'num_iterations': 1000,
 #                  'truncate_at': 0.7}]
+
+@schema
+class SpectrumParams(dj.Lookup):
+    definition = """ # parameters to evaluate reconstructions in frequency bins of the fourier spectrum
+    spectrum_params:    smallint
+    ---
+    bin_size:           float           # amount of frequency in each bin (0-0.5)
+    interval:           float           # how often to sample the bins
+    """
+    contents = [{'spectrum_params': 1, 'bin_size': 0.05, 'interval': 0.025}]
+    
+    def get_freqs(self):
+        """Returns the halfway point of each frequency bin for one set of params"""
+        bin_size, interval = self.fetch1('bin_size', 'interval')
+        freqs = np.arange(bin_size/2, 0.5 - bin_size / 2 + 1e-9, interval)
+        return freqs
