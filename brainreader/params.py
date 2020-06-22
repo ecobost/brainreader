@@ -688,6 +688,7 @@ class GeneratorMNISTParams(dj.Lookup):
 @schema
 class SpectrumParams(dj.Lookup):
     definition = """ # parameters to evaluate reconstructions in frequency bins of the fourier spectrum
+    
     spectrum_params:    smallint
     ---
     bin_size:           float           # amount of frequency in each bin (0-0.5)

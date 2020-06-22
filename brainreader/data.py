@@ -15,19 +15,26 @@ schema = dj.schema('br_data')
 dj.config['stores'] = {
     'brdata': {'protocol': 'file', 'location': '/mnt/scratch07/ecobost'}, }
 
-# Scans with training and testing images shown to mice
+
 scans = [
-    {'animal_id': 20892, 'session': 10, 'scan_idx': 10}, # small FOV, 4 areas 
+    # 100 oracle images repeated 10 times (and lower average oracle, ignore)
+    {'animal_id': 20892, 'session': 10, 'scan_idx': 10},  # small FOV, 4 areas
     {'animal_id': 20892, 'session': 9, 'scan_idx': 10},
     {'animal_id': 20892, 'session': 9, 'scan_idx': 11},
-    {'animal_id': 23555, 'session': 26, 'scan_idx': 19}, # eye closed for 15 mins, also used test set for crossval so disregard
+
+    # from here on, 30 natural images + 10 MNIST digits repeated 40 times
+    {'animal_id': 23555, 'session': 26, 'scan_idx': 19},  # eye closed for 15 mins, no MNIST oracle images (only 30 natural), used the test set for crossvalidation too so disregard
     {'animal_id': 23555, 'session': 26, 'scan_idx': 20},
+    
     {'animal_id': 23656, 'session': 10, 'scan_idx': 20},
     {'animal_id': 23656, 'session': 10, 'scan_idx': 21},
+    
     {'animal_id': 23605, 'session': 3, 'scan_idx': 11},  # autistic mouse
     {'animal_id': 23605, 'session': 3, 'scan_idx': 12},  # autistic mouse
     {'animal_id': 23603, 'session': 5, 'scan_idx': 19},  # control for the autistic mouse
-    ]
+    
+    {'animal_id': 23555, 'session': 67, 'scan_idx': 10},
+    {'animal_id': 23555, 'session': 67, 'scan_idx': 11}, ]
 
 
 @schema
