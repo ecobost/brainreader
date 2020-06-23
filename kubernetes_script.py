@@ -186,7 +186,9 @@ from brainreader import decoding
 # decoding.DeconvModel.populate(reserve_jobs=True)
 # decoding.DeconvValEvaluation.populate(reserve_jobs=True)
 # decoding.GaborModel.populate(reserve_jobs=True)
-decoding.GaborValEvaluation.populate(reserve_jobs=True)
+#decoding.GaborValEvaluation.populate(reserve_jobs=True)
+decoding.GaborReconstructions.populate({'dset_id': 4}, reserve_jobs=True)
+decoding.GaborEvaluation.populate(reserve_jobs=True)
 
 #from brainreader import reconstructions
 # Use val_corr in EnsembleEvaluation to add an entry in reconstructions.BestEnsemble
