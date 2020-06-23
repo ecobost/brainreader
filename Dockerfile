@@ -54,6 +54,7 @@ RUN pip3 install -e /src/brainreader
 
 # Install extra libraries (non-essential but useful)
 RUN apt install -y git nano
+RUN pip3 install ipywidgets
 
 # Clean apt lists
 RUN rm -rf /var/lib/apt/lists/*
