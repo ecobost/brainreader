@@ -873,22 +873,22 @@ class GaborModel(dj.Computed):
         dset_id = key['dset_id']
         train_images = (params.DataParams & key).get_images(dset_id, split='train')
         train_responses = (params.DataParams & key).get_responses(dset_id, split='train')
-        min_img_value, max_img_value = train_images.min(), train_images.max()
 
         # Resize images
         h, w = (params.GaborParams & key).fetch1('image_height', 'image_width')
         train_images = utils.resize(train_images, h, w)
         train_images = train_images.reshape(len(train_images), -1) # num_samples x num_pixels
 
-        # Change image range to [-1, 1]
-        rescaled_images = ((train_images - min_img_value) /
-                           (max_img_value - min_img_value)) * 2 -1
-
         # Compute gabor features per image
         gabors = (params.GaborSet & (params.GaborParams & key)).get_gabors(h, w)
-        train_features = rescaled_images @ gabors.reshape(len(gabors), -1).T
+        train_features = train_images @ gabors.reshape(len(gabors), -1).T
 
-        # Define model
+        # Rescale features so MSE in train set is minimum
+        train_recons = train_features @ gabors.reshape(len(gabors), -1)
+        scale_factor = (train_images * train_recons).sum() / (train_recons**2).sum()
+        train_features = scale_factor * train_features
+
+        # Define model1, h * w)
         model = (params.GaborParams & key).get_model()
 
         # Fit
@@ -901,11 +901,7 @@ class GaborModel(dj.Computed):
         train_feat_corr = utils.compute_correlation(pred_features, train_features).mean()
 
         # Evaluate on images
-        # pred_features = pred_features / np.abs(pred_features).sum(-1, keepdims=True)
-        pred_images = (pred_features @ gabors.reshape(-1, h * w))
-        pred_images = ((pred_images + 1) * (max_img_value - min_img_value) / 2 +
-                       min_img_value)
-
+        pred_images = pred_features @ gabors.reshape(len(gabors), -1)
         train_mse = ((pred_images - train_images) ** 2).mean()
         train_corr = utils.compute_imagewise_correlation(pred_images, train_images)
 
@@ -946,17 +942,11 @@ class GaborValEvaluation(dj.Computed):
         # Get model
         model = (GaborModel & key).get_model()
 
-        # Create reconstructions (in [-1, 1] range)
+        # Create reconstructions
         h, w = (params.GaborParams & key).fetch1('image_height', 'image_width')
         gabors = (params.GaborSet & (params.GaborParams & key)).get_gabors(h, w)
         pred_features = model.predict(responses)
-        pred_features = pred_features / np.abs(pred_features).sum(-1, keepdims=True)
-        pred_images = (pred_features @ gabors.reshape(-1, h * w)).reshape(-1, h, w)
-
-        # Rescale back to normalized range (so MSE is comparable with previous models)
-        train_images = (params.DataParams & key).get_images(key['dset_id'], split='train')
-        min_img_value, max_img_value = train_images.min(), train_images.max()
-        recons = ((pred_images + 1) * (max_img_value - min_img_value) / 2 + min_img_value)
+        recons = (pred_features @ gabors.reshape(len(gabors), -1)).reshape(-1, h, w)
 
         # Compute MSE
         val_mse = ((images - utils.resize(recons, *images.shape[1:])) ** 2).mean()
@@ -995,18 +985,12 @@ class GaborReconstructions(dj.Computed):
         # Get model
         model = (GaborModel & key).get_model()
 
-        # Create reconstructions (in [-1, 1] range)
+        # Create reconstructions
         h, w = (params.GaborParams & key).fetch1('image_height', 'image_width')
         gabors = (params.GaborSet & (params.GaborParams & key)).get_gabors(h, w)
         pred_features = model.predict(responses)
-        pred_features = pred_features / np.abs(pred_features).sum(-1, keepdims=True)
-        pred_images = (pred_features @ gabors.reshape(-1, h * w)).reshape(-1, h, w)
-
-        # Rescale to normalized range (so they are in the same range as previous models)
-        train_images = (params.DataParams & key).get_images(key['dset_id'], split='train')
-        min_img_value, max_img_value = train_images.min(), train_images.max()
-        recons = ((pred_images + 1) * (max_img_value - min_img_value) / 2 + min_img_value)
-
+        recons = (pred_features @ gabors.reshape(len(gabors), -1)).reshape(-1, h, w)
+        
         # Resize to orginal dimensions (144 x 256)
         new_h, new_w = (params.DataParams & key).fetch1('image_height', 'image_width')
         recons = recons.reshape(-1, h, w)
