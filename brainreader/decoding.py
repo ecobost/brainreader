@@ -886,7 +886,7 @@ class GaborModel(dj.Computed):
 
         # Compute gabor features per image
         gabors = (params.GaborSet & (params.GaborParams & key)).get_gabors(h, w)
-        train_features = rescaled_images.reshape(-1, h * w) @ gabors.reshape(-1, h * w).T
+        train_features = rescaled_images @ gabors.reshape(len(gabors), -1).T
 
         # Define model
         model = (params.GaborParams & key).get_model()
@@ -901,9 +901,11 @@ class GaborModel(dj.Computed):
         train_feat_corr = utils.compute_correlation(pred_features, train_features).mean()
 
         # Evaluate on images
+        # pred_features = pred_features / np.abs(pred_features).sum(-1, keepdims=True)
         pred_images = (pred_features @ gabors.reshape(-1, h * w))
         pred_images = ((pred_images + 1) * (max_img_value - min_img_value) / 2 +
                        min_img_value)
+
         train_mse = ((pred_images - train_images) ** 2).mean()
         train_corr = utils.compute_imagewise_correlation(pred_images, train_images)
 
@@ -944,10 +946,11 @@ class GaborValEvaluation(dj.Computed):
         # Get model
         model = (GaborModel & key).get_model()
 
-        # Create reconstructions
+        # Create reconstructions (in [-1, 1] range)
         h, w = (params.GaborParams & key).fetch1('image_height', 'image_width')
         gabors = (params.GaborSet & (params.GaborParams & key)).get_gabors(h, w)
         pred_features = model.predict(responses)
+        pred_features = pred_features / np.abs(pred_features).sum(-1, keepdims=True)
         pred_images = (pred_features @ gabors.reshape(-1, h * w)).reshape(-1, h, w)
 
         # Rescale back to normalized range (so MSE is comparable with previous models)
@@ -992,10 +995,11 @@ class GaborReconstructions(dj.Computed):
         # Get model
         model = (GaborModel & key).get_model()
 
-        # Create reconstructions
+        # Create reconstructions (in [-1, 1] range)
         h, w = (params.GaborParams & key).fetch1('image_height', 'image_width')
         gabors = (params.GaborSet & (params.GaborParams & key)).get_gabors(h, w)
         pred_features = model.predict(responses)
+        pred_features = pred_features / np.abs(pred_features).sum(-1, keepdims=True)
         pred_images = (pred_features @ gabors.reshape(-1, h * w)).reshape(-1, h, w)
 
         # Rescale to normalized range (so they are in the same range as previous models)
@@ -1013,8 +1017,6 @@ class GaborReconstructions(dj.Computed):
                      {'split': 'test'})
         image_classes, image_ids = split_rel.fetch('image_class', 'image_id',
                                                    order_by='image_class, image_id')
-
-
 
         # Insert
         self.insert1(key)
