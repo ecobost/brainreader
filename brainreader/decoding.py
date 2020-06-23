@@ -865,7 +865,7 @@ class GaborModel(dj.Computed):
     @property
     def key_source(self):
         all_keys = data.Scan * params.DataParams * params.GaborParams.proj()
-        return all_keys & {'data_params': 1} & 'gabor_params < 81'
+        return all_keys & {'data_params': 1} #& 'gabor_params < 81'
 
     def make(self, key):
         # Get training data
@@ -888,7 +888,7 @@ class GaborModel(dj.Computed):
         scale_factor = (train_images * train_recons).sum() / (train_recons**2).sum()
         train_features = scale_factor * train_features
 
-        # Define model1, h * w)
+        # Define model1
         model = (params.GaborParams & key).get_model()
 
         # Fit
