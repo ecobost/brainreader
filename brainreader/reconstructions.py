@@ -448,7 +448,6 @@ class GradientOneReconstruction(dj.Computed, Fillable):
         self.insert1({**key, 'reconstruction': recon, 'sim_value': final_f})
 
 
-
 @schema
 class GradientValEvaluation(dj.Computed):
     definition = """ # evaluate gradient reconstruction on the validation set
@@ -456,8 +455,10 @@ class GradientValEvaluation(dj.Computed):
     -> train.Ensemble
     -> params.GradientParams
     ---
-    val_mse:            float       # validation MSE computed at the original resolution
-    val_corr:           float       # validation correlation computed at the original resolution
+    val_mse:            float       # average validation MSE
+    val_corr:           float       # average validation correlation
+    val_psnr:           float       # average validation peak_signal-to-noise ratio
+    val_ssim:           float       # average validation structural similarity
     """
 
     @property
@@ -483,9 +484,13 @@ class GradientValEvaluation(dj.Computed):
         # Compute metrics
         val_mse = ((images - recons)**2).mean()
         val_corr = utils.compute_imagewise_correlation(images, recons)
+        val_psnr = utils.compute_imagewise_psnr(images, recons)
+        val_ssim = utils.compute_imagewise_ssim(images, recons)
 
         # Insert
-        self.insert1({**key, 'val_mse': val_mse, 'val_corr': val_corr})
+        self.insert1({
+            **key, 'val_mse': val_mse, 'val_corr': val_corr, 'val_psnr': val_psnr,
+            'val_ssim': val_ssim})
 
 @schema
 class GradientEvaluation(dj.Computed):
