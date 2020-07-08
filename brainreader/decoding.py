@@ -161,8 +161,10 @@ class LinearEvaluation(dj.Computed):
     
     -> LinearReconstructions
     ---
-    test_mse:       float       # average MSE across all image
+    test_mse:       float       # average MSE across all images
     test_corr:      float       # average correlation (computed per image and averaged across images)
+    test_psnr:      float       # average peak_signal-to-noise ratio across all images
+    test_ssim:      float       # average SSIM across all images
     test_pixel_mse: longblob    # pixel-wise MSE (computed per pixel, averaged across images)
     test_pixel_corr:longblob    # pixel-wise correlation (computed per pixel across images)
     """
@@ -187,9 +189,14 @@ class LinearEvaluation(dj.Computed):
         corr = utils.compute_imagewise_correlation(images, recons)
         pixel_corr = utils.compute_pixelwise_correlation(images, recons)
 
+        # Compute PSNR and SSIM
+        psnr = utils.compute_imagewise_psnr(images, recons)
+        ssim = utils.compute_imagewise_ssim(images, recons)
+
         # Insert
-        self.insert1({**key, 'test_mse': mse, 'test_corr': corr,
-                      'test_pixel_mse': pixel_mse, 'test_pixel_corr': pixel_corr})
+        self.insert1({**key, 'test_mse': mse, 'test_corr': corr, 'test_psnr': psnr,
+                      'test_ssim': ssim, 'test_pixel_mse': pixel_mse,
+                      'test_pixel_corr': pixel_corr})
 
 
 ########################## MLP ##########################################################
@@ -477,6 +484,8 @@ class MLPEvaluation(dj.Computed):
     ---
     test_mse:       float       # average MSE across all image
     test_corr:      float       # average correlation (computed per image and averaged across images)
+    test_psnr:      float       # average peak_signal-to-noise ratio across all images
+    test_ssim:      float       # average SSIM across all images
     test_pixel_mse: longblob    # pixel-wise MSE (computed per pixel, averaged across images)
     test_pixel_corr:longblob    # pixel-wise correlation (computed per pixel across images)
     """
@@ -502,9 +511,14 @@ class MLPEvaluation(dj.Computed):
         corr = utils.compute_imagewise_correlation(images, recons)
         pixel_corr = utils.compute_pixelwise_correlation(images, recons)
 
+        # Compute PSNR and SSIM
+        psnr = utils.compute_imagewise_psnr(images, recons)
+        ssim = utils.compute_imagewise_ssim(images, recons)
+
         # Insert
         self.insert1({
-            **key, 'test_mse': mse, 'test_corr': corr, 'test_pixel_mse': pixel_mse,
+            **key, 'test_mse': mse, 'test_corr': corr, 'test_psnr': psnr,
+            'test_ssim': ssim, 'test_pixel_mse': pixel_mse,
             'test_pixel_corr': pixel_corr})
 
 
@@ -803,6 +817,8 @@ class DeconvEvaluation(dj.Computed):
     ---
     test_mse:       float       # average MSE across all image
     test_corr:      float       # average correlation (computed per image and averaged across images)
+    test_psnr:      float       # average peak_signal-to-noise ratio across all images
+    test_ssim:      float       # average SSIM across all images
     test_pixel_mse: longblob    # pixel-wise MSE (computed per pixel, averaged across images)
     test_pixel_corr:longblob    # pixel-wise correlation (computed per pixel across images)
     """
@@ -828,9 +844,14 @@ class DeconvEvaluation(dj.Computed):
         corr = utils.compute_imagewise_correlation(images, recons)
         pixel_corr = utils.compute_pixelwise_correlation(images, recons)
 
+        # Compute PSNR and SSIM
+        psnr = utils.compute_imagewise_psnr(images, recons)
+        ssim = utils.compute_imagewise_ssim(images, recons)
+
         # Insert
         self.insert1({
-            **key, 'test_mse': mse, 'test_corr': corr, 'test_pixel_mse': pixel_mse,
+            **key, 'test_mse': mse, 'test_corr': corr, 'test_psnr': psnr,
+            'test_ssim': ssim, 'test_pixel_mse': pixel_mse,
             'test_pixel_corr': pixel_corr})
 
 
@@ -1005,6 +1026,8 @@ class GaborEvaluation(dj.Computed):
     ---
     test_mse:       float       # average MSE across all images
     test_corr:      float       # average correlation (computed per image and averaged across images)
+    test_psnr:      float       # average peak_signal-to-noise ratio across all images
+    test_ssim:      float       # average SSIM across all images
     test_pixel_mse: longblob    # pixel-wise MSE (computed per pixel, averaged across images)
     test_pixel_corr:longblob    # pixel-wise correlation (computed per pixel across images)
     """
@@ -1029,9 +1052,15 @@ class GaborEvaluation(dj.Computed):
         corr = utils.compute_imagewise_correlation(images, recons)
         pixel_corr = utils.compute_pixelwise_correlation(images, recons)
 
+        # Compute PSNR and SSIM
+        psnr = utils.compute_imagewise_psnr(images, recons)
+        ssim = utils.compute_imagewise_ssim(images, recons)
+
         # Insert
-        self.insert1({**key, 'test_mse': mse, 'test_corr': corr,
-                      'test_pixel_mse': pixel_mse, 'test_pixel_corr': pixel_corr})
+        self.insert1({
+            **key, 'test_mse': mse, 'test_corr': corr, 'test_psnr': psnr,
+            'test_ssim': ssim, 'test_pixel_mse': pixel_mse,
+            'test_pixel_corr': pixel_corr})
 
 
 #TODO: Evaluate by comparing to the reconstructed image too (i..e, reconstruct the image with the gabor bank and correlate to that)

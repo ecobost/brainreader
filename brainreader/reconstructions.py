@@ -305,6 +305,8 @@ class AHPEvaluation(dj.Computed):
     ---
     test_mse:       float       # average MSE across all image
     test_corr:      float       # average correlation (computed per image and averaged across images)
+    test_psnr:      float       # average peak_signal-to-noise ratio across all images
+    test_ssim:      float       # average SSIM across all images
     test_pixel_mse: longblob    # pixel-wise MSE (computed per pixel, averaged across images)
     test_pixel_corr:longblob    # pixel-wise correlation (computed per pixel across images)
     """
@@ -331,9 +333,14 @@ class AHPEvaluation(dj.Computed):
         corr = utils.compute_imagewise_correlation(images, recons)
         pixel_corr = utils.compute_pixelwise_correlation(images, recons)
 
+        # Compute PSNR and SSIM
+        psnr = utils.compute_imagewise_psnr(images, recons)
+        ssim = utils.compute_imagewise_ssim(images, recons)
+
         # Insert
         self.insert1({
-            **key, 'test_mse': mse, 'test_corr': corr, 'test_pixel_mse': pixel_mse,
+            **key, 'test_mse': mse, 'test_corr': corr, 'test_psnr': psnr,
+            'test_ssim': ssim, 'test_pixel_mse': pixel_mse,
             'test_pixel_corr': pixel_corr})
 
 
@@ -501,6 +508,8 @@ class GradientEvaluation(dj.Computed):
     ---
     test_mse:       float       # average MSE across all image
     test_corr:      float       # average correlation (computed per image and averaged across images)
+    test_psnr:      float       # average peak_signal-to-noise ratio across all images
+    test_ssim:      float       # average SSIM across all images
     test_pixel_mse: longblob    # pixel-wise MSE (computed per pixel, averaged across images)
     test_pixel_corr:longblob    # pixel-wise correlation (computed per pixel across images)
     """
@@ -533,9 +542,14 @@ class GradientEvaluation(dj.Computed):
         corr = utils.compute_imagewise_correlation(images, recons)
         pixel_corr = utils.compute_pixelwise_correlation(images, recons)
 
+        # Compute PSNR and SSIM
+        psnr = utils.compute_imagewise_psnr(images, recons)
+        ssim = utils.compute_imagewise_ssim(images, recons)
+
         # Insert
         self.insert1({
-            **key, 'test_mse': mse, 'test_corr': corr, 'test_pixel_mse': pixel_mse,
+            **key, 'test_mse': mse, 'test_corr': corr, 'test_psnr': psnr,
+            'test_ssim': ssim, 'test_pixel_mse': pixel_mse,
             'test_pixel_corr': pixel_corr})
 
 
