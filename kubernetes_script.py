@@ -180,18 +180,18 @@
 
 from brainreader import decoding
 # decoding.LinearModel.populate(reserve_jobs=True)
-# decoding.LinearValEvaluation.populate(reserve_jobs=True)
+decoding.LinearValEvaluation.populate(reserve_jobs=True)
 # decoding.MLPModel.populate(reserve_jobs=True)
-# decoding.MLPValEvaluation.populate(reserve_jobs=True)
+decoding.MLPValEvaluation.populate(reserve_jobs=True)
 # decoding.DeconvModel.populate(reserve_jobs=True)
-# decoding.DeconvValEvaluation.populate(reserve_jobs=True)
-decoding.GaborModel.populate(reserve_jobs=True)
+decoding.DeconvValEvaluation.populate(reserve_jobs=True)
+#decoding.GaborModel.populate(reserve_jobs=True)
 decoding.GaborValEvaluation.populate(reserve_jobs=True)
 
-#from brainreader import reconstructions
+from brainreader import reconstructions
 # Use val_corr in EnsembleEvaluation to add an entry in reconstructions.BestEnsemble
 # reconstructions.ModelResponses.populate(reserve_jobs=True) # needs to be done only once per dset
-# reconstructions.AHPValEvaluation.populate(reserve_jobs=True)
+reconstructions.AHPValEvaluation.populate(reserve_jobs=True)
 
 # reconstructions.GradientOneReconstruction.fill_recons(split='val')
 # reconstructions.GradientValEvaluation.populate(reserve_jobs=True)
