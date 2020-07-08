@@ -3,7 +3,7 @@ from setuptools import setup
 
 setup(
     name='brainreader',
-    version='0.0.2',
+    version='0.1.0',
     description='Reconstruct images from recorded two-photon activity',
     author='Erick Cobos',
     author_email='ecobos@bcm.edu',
@@ -11,7 +11,8 @@ setup(
     url='https://github.com/ecobost/brainreader',
     keywords= 'brainreader decoding two-photon',
     packages=['brainreader'],
-    install_requires=['datajoint>=0.12', 'torch>=1.0', 'numpy', 'scikit-learn'],
+    install_requires=['datajoint>=0.12', 'torch>=1.0', 'numpy', 'scikit-learn', 
+                      'scikit-image'],
     classifiers=[
         'Development Status :: 3 - Alpha',
         'Intended Audience :: Science/Research',

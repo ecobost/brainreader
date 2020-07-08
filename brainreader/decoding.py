@@ -82,10 +82,10 @@ class LinearValEvaluation(dj.Computed):
     
     -> LinearModel
     ---
-    val_mse:            float       # validation MSE computed at the resolution in DataParams
-    val_corr:           float       # validation correlation computed at the resolution in DataParams
-    resized_val_mse:    float       # validation MSE at the resolution this model was fitted on (LinearParams)
-    resized_val_corr:   float       # validation correlation at the resolution this model was fitted on
+    val_mse:            float       # average validation MSE
+    val_corr:           float       # average validation correlation
+    val_psnr:           float       # average validation peak_signal-to-noise ratio
+    val_ssim:           float       # average validation structural similarity
     """
     def make(self, key):
         # Get data
@@ -99,19 +99,17 @@ class LinearValEvaluation(dj.Computed):
         recons = model.predict(responses)
         h, w = (params.LinearParams & key).fetch1('image_height', 'image_width')
         recons = recons.reshape(-1, h, w)
+        recons = utils.resize(recons, *images.shape[1:])
 
-        # Compute MSE
-        val_mse = ((images - utils.resize(recons, *images.shape[1:])) ** 2).mean()
-        resized_val_mse = ((utils.resize(images, *recons.shape[1:]) - recons) ** 2).mean()
-
-        # Compute correlation
-        val_corr = utils.compute_imagewise_correlation(images, utils.resize(recons, *images.shape[1:]))
-        resized_val_corr = utils.compute_imagewise_correlation(utils.resize(images, *recons.shape[1:]),
-                                               recons)
+        # Compute metrics
+        val_mse = ((images - recons) ** 2).mean()
+        val_corr = utils.compute_imagewise_correlation(images, recons)
+        val_psnr = utils.compute_imagewise_psnr(images, recons)
+        val_ssim = utils.compute_imagewise_ssim(images, recons)
 
         # Insert
-        self.insert1({**key, 'val_mse': val_mse, 'resized_val_mse': resized_val_mse,
-                      'val_corr': val_corr, 'resized_val_corr': resized_val_corr})
+        self.insert1({**key, 'val_mse': val_mse, 'val_corr': val_corr,
+                      'val_psnr': val_psnr, 'val_ssim': val_ssim})
 
 
 @schema
@@ -389,10 +387,10 @@ class MLPValEvaluation(dj.Computed):
 
     -> MLPModel
     ---
-    val_mse:            float       # validation MSE computed at the resolution in DataParams
-    val_corr:           float       # validation correlation computed at the resolution in DataParams
-    resized_val_mse:    float       # validation MSE at the resolution this model was fitted on
-    resized_val_corr:   float       # validation correlation at the resolution this model was fitted on
+    val_mse:            float       # average validation MSE
+    val_corr:           float       # average validation correlation
+    val_psnr:           float       # average validation peak_signal-to-noise ratio
+    val_ssim:           float       # average validation structural similarity
     """
 
     def make(self, key):
@@ -410,20 +408,17 @@ class MLPValEvaluation(dj.Computed):
             recons = recons.cpu().numpy()
         h, w = (params.MLPData & (params.MLPParams & key)).fetch1('image_height', 'image_width')
         recons = recons.reshape(-1, h, w)
+        recons = utils.resize(recons, *images.shape[1:])
 
-        # Compute MSE
-        val_mse = ((images - utils.resize(recons, *images.shape[1:]))**2).mean()
-        resized_val_mse = ((utils.resize(images, *recons.shape[1:]) - recons)**2).mean()
-
-        # Compute correlation
-        val_corr = utils.compute_imagewise_correlation(images, utils.resize(recons, *images.shape[1:]))
-        resized_val_corr = utils.compute_imagewise_correlation(utils.resize(images, *recons.shape[1:]),
-                                               recons)
+        # Compute metrics
+        val_mse = ((images - recons) ** 2).mean()
+        val_corr = utils.compute_imagewise_correlation(images, recons)
+        val_psnr = utils.compute_imagewise_psnr(images, recons)
+        val_ssim = utils.compute_imagewise_ssim(images, recons)
 
         # Insert
-        self.insert1({
-            **key, 'val_mse': val_mse, 'resized_val_mse': resized_val_mse,
-            'val_corr': val_corr, 'resized_val_corr': resized_val_corr})
+        self.insert1({**key, 'val_mse': val_mse, 'val_corr': val_corr,
+                      'val_psnr': val_psnr, 'val_ssim': val_ssim})
 
 
 @schema
@@ -721,10 +716,10 @@ class DeconvValEvaluation(dj.Computed):
 
     -> DeconvModel
     ---
-    val_mse:            float       # validation MSE computed at the resolution in DataParams
-    val_corr:           float       # validation correlation computed at the resolution in DataParams
-    resized_val_mse:    float       # validation MSE at the resolution this model was fitted on
-    resized_val_corr:   float       # validation correlation at the resolution this model was fitted on
+    val_mse:            float       # average validation MSE
+    val_corr:           float       # average validation correlation
+    val_psnr:           float       # average validation peak_signal-to-noise ratio
+    val_ssim:           float       # average validation structural similarity
     """
 
     def make(self, key):
@@ -741,21 +736,17 @@ class DeconvValEvaluation(dj.Computed):
         with torch.no_grad():
             recons = model(torch.as_tensor(responses, dtype=torch.float32, device='cuda'))
             recons = recons.squeeze(1).cpu().numpy()
+        recons = utils.resize(recons, *images.shape[1:])
 
-        # Compute MSE
-        val_mse = ((images - utils.resize(recons, *images.shape[1:]))**2).mean()
-        resized_val_mse = ((utils.resize(images, *recons.shape[1:]) - recons)**2).mean()
-
-        # Compute correlation
-        val_corr = utils.compute_imagewise_correlation(
-            images, utils.resize(recons, *images.shape[1:]))
-        resized_val_corr = utils.compute_imagewise_correlation(
-            utils.resize(images, *recons.shape[1:]), recons)
+        # Compute metrics
+        val_mse = ((images - recons) ** 2).mean()
+        val_corr = utils.compute_imagewise_correlation(images, recons)
+        val_psnr = utils.compute_imagewise_psnr(images, recons)
+        val_ssim = utils.compute_imagewise_ssim(images, recons)
 
         # Insert
-        self.insert1({
-            **key, 'val_mse': val_mse, 'resized_val_mse': resized_val_mse,
-            'val_corr': val_corr, 'resized_val_corr': resized_val_corr})
+        self.insert1({**key, 'val_mse': val_mse, 'val_corr': val_corr,
+                      'val_psnr': val_psnr, 'val_ssim': val_ssim})
 
 
 @schema
@@ -929,10 +920,10 @@ class GaborValEvaluation(dj.Computed):
     
     -> GaborModel
     ---
-    val_mse:            float       # validation MSE computed at the resolution in DataParams
-    val_corr:           float       # validation correlation computed at the resolution in DataParams
-    resized_val_mse:    float       # validation MSE at the resolution this model was fitted on (GaborParams)
-    resized_val_corr:   float       # validation correlation at the resolution this model was fitted on
+    val_mse:            float       # average validation MSE
+    val_corr:           float       # average validation correlation
+    val_psnr:           float       # average validation peak_signal-to-noise ratio
+    val_ssim:           float       # average validation structural similarity
     """
     def make(self, key):
         # Get data
@@ -947,19 +938,17 @@ class GaborValEvaluation(dj.Computed):
         gabors = (params.GaborSet & (params.GaborParams & key)).get_gabors(h, w)
         pred_features = model.predict(responses)
         recons = (pred_features @ gabors.reshape(len(gabors), -1)).reshape(-1, h, w)
+        recons = utils.resize(recons, *images.shape[1:])
 
-        # Compute MSE
-        val_mse = ((images - utils.resize(recons, *images.shape[1:])) ** 2).mean()
-        resized_val_mse = ((utils.resize(images, *recons.shape[1:]) - recons) ** 2).mean()
-
-        # Compute correlation
-        val_corr = utils.compute_imagewise_correlation(images, utils.resize(recons, *images.shape[1:]))
-        resized_val_corr = utils.compute_imagewise_correlation(utils.resize(images, *recons.shape[1:]),
-                                               recons)
+        # Compute metrics
+        val_mse = ((images - recons) ** 2).mean()
+        val_corr = utils.compute_imagewise_correlation(images, recons)
+        val_psnr = utils.compute_imagewise_psnr(images, recons)
+        val_ssim = utils.compute_imagewise_ssim(images, recons)
 
         # Insert
-        self.insert1({**key, 'val_mse': val_mse, 'resized_val_mse': resized_val_mse,
-                      'val_corr': val_corr, 'resized_val_corr': resized_val_corr})
+        self.insert1({**key, 'val_mse': val_mse, 'val_corr': val_corr,
+                      'val_psnr': val_psnr, 'val_ssim': val_ssim})
 
 
 @schema
@@ -990,7 +979,7 @@ class GaborReconstructions(dj.Computed):
         gabors = (params.GaborSet & (params.GaborParams & key)).get_gabors(h, w)
         pred_features = model.predict(responses)
         recons = (pred_features @ gabors.reshape(len(gabors), -1)).reshape(-1, h, w)
-        
+
         # Resize to orginal dimensions (144 x 256)
         new_h, new_w = (params.DataParams & key).fetch1('image_height', 'image_width')
         recons = recons.reshape(-1, h, w)

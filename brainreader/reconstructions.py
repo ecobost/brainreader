@@ -120,8 +120,10 @@ class AHPValEvaluation(dj.Computed):
     -> ModelResponses
     -> params.AHPParams
     ---
-    val_mse:            float       # validation MSE computed at the original resolution
-    val_corr:           float       # validation correlation computed at the original resolution
+    val_mse:            float       # average validation MSE
+    val_corr:           float       # average validation correlation
+    val_psnr:           float       # average validation peak_signal-to-noise ratio
+    val_ssim:           float       # average validation structural similarity
     """
 
     @property
@@ -181,9 +183,13 @@ class AHPValEvaluation(dj.Computed):
         # Compute metrics
         val_mse = ((images - recons)**2).mean()
         val_corr = utils.compute_imagewise_correlation(images, recons)
+        val_psnr = utils.compute_imagewise_psnr(images, recons)
+        val_ssim = utils.compute_imagewise_ssim(images, recons)
 
         # Insert
-        self.insert1({**key, 'val_mse': val_mse, 'val_corr': val_corr})
+        self.insert1({
+            **key, 'val_mse': val_mse, 'val_corr': val_corr, 'val_psnr': val_psnr,
+            'val_ssim': val_ssim})
 
 
 @schema

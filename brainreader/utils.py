@@ -89,6 +89,63 @@ def compute_pixelwise_correlation(images1, images2):
     return corrs.reshape(height, width)
 
 
+def compute_imagewise_psnr(images, recons, eps=1e-8):
+    """ Compute average peak-to-signal-noise ratio between images and their reconstructions.
+    
+    Arguments:
+        images (np.array): Array (num_images x height x widht) of images.
+        recons (np.array): Array (num_images x height x widht) of reconstructions.
+        
+    Returns
+        psnr (float): Average psnr across all images.
+    """
+    # Reshape (in case images are sent as 2-d rather than 3-d arrays)
+    num_images = len(images)
+    images = images.reshape(num_images, -1)
+    recons = recons.reshape(num_images, -1)
+
+    # Compute PSNR
+    #peak_signal = (recons - recons.min(axis=-1, keepdims=True)).max(axis=-1) ** 2
+    peak_signal = (images - images.min(axis=-1, keepdims=True)).max(axis=-1)**2
+    noise = ((images - recons)**2).mean(axis=-1)
+    psnr_per_image = 10 * np.log10(peak_signal / (noise + eps))
+    psnr = psnr_per_image.mean()
+
+    return psnr
+
+
+def compute_imagewise_ssim(images1, images2):
+    """ Compute average structural similarity between images and their reconstructions.
+    
+     Arguments:
+        images1, images2 (np.array): Array (num_images x height x widht) of images.
+        
+    Returns
+        ssim (float): Average structural similarity across all images.
+    """
+    from skimage.metrics import structural_similarity as ssim
+
+    # Basic checks
+    if images1.ndim != 3 or images2.ndim != 3:
+        raise ValueError('Images and reconstructions need to be 3-d arrays.')
+
+    # Change range to [0, 1]
+    min1 = images1.min(axis=(-1, -2), keepdims=True)
+    max1 = images1.max(axis=(-1, -2), keepdims=True)
+    images1 = (images1 - min1) / (max1 - min1)
+    min2 = images2.min(axis=(-1, -2), keepdims=True)
+    max2 = images2.max(axis=(-1, -2), keepdims=True)
+    images2 = (images2 - min2) / (max2 - min2)
+
+    # Compute ssim
+    ssim_per_image = [
+        ssim(im1, im2, data_range=1, gaussian_weights=True, sigma=1.5,
+             use_sample_covariance=False) for im1, im2 in zip(images1, images2)]
+    ssim = np.mean(ssim_per_image)
+
+    return ssim
+
+
 def create_grid(height, width):
     """ Creates a sampling grid (from -1 to 1) of the desired dimensions.
     
