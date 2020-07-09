@@ -34,8 +34,16 @@ scans = [
     {'animal_id': 23603, 'session': 5, 'scan_idx': 19},  # control for the autistic mouse
     
     {'animal_id': 23555, 'session': 67, 'scan_idx': 10},
-    {'animal_id': 23555, 'session': 67, 'scan_idx': 11}, ]
-
+    {'animal_id': 23555, 'session': 67, 'scan_idx': 11}, # this is 20 um deeper than 67-10
+    
+    {'animal_id': 23961, 'session': 3, 'scan_idx': 19},
+    {'animal_id': 23961, 'session': 3, 'scan_idx': 20},
+    
+    {'animal_id': 23964, 'session': 3, 'scan_idx': 14},
+    #{'animal_id': 23964, 'session': 3, 'scan_idx': 15}, # water run out for last 10% of scan (~660 trials)
+    
+    {'animal_id': 23946, 'session': 3, 'scan_idx': 10}, # "eye wasn't super great" -Taliah
+    ]
 
 @schema
 class Scan(dj.Computed):
