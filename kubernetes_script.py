@@ -172,11 +172,11 @@
 
 
 # Populate models for all scans
-from brainreader.encoding import train
-train.TrainedModel.populate(reserve_jobs=True)
-train.Evaluation.populate(reserve_jobs=True)
-train.Ensemble.populate(reserve_jobs=True)
-train.EnsembleEvaluation.populate(reserve_jobs=True)
+# from brainreader.encoding import train
+# train.TrainedModel.populate(reserve_jobs=True)
+# train.Evaluation.populate(reserve_jobs=True)
+# train.Ensemble.populate(reserve_jobs=True)
+# train.EnsembleEvaluation.populate(reserve_jobs=True)
 
 from brainreader import decoding
 decoding.LinearModel.populate(reserve_jobs=True)
@@ -190,7 +190,7 @@ decoding.GaborValEvaluation.populate(reserve_jobs=True)
 
 from brainreader import reconstructions
 # Use val_corr in EnsembleEvaluation to add an entry in reconstructions.BestEnsemble
-# reconstructions.ModelResponses.populate(reserve_jobs=True) # needs to be done only once per dset
+reconstructions.ModelResponses.populate(reserve_jobs=True) # needs to be done only once per dset
 reconstructions.AHPValEvaluation.populate(reserve_jobs=True)
 
 # reconstructions.GradientOneReconstruction.fill_recons(split='val')
