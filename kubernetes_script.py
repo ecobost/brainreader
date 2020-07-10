@@ -190,7 +190,7 @@ decoding.GaborValEvaluation.populate(reserve_jobs=True)
 
 from brainreader import reconstructions
 # Use val_corr in EnsembleEvaluation to add an entry in reconstructions.BestEnsemble
-reconstructions.ModelResponses.populate(reserve_jobs=True) # needs to be done only once per dset
+#reconstructions.ModelResponses.populate(reserve_jobs=True) # needs to be done only once per dset
 reconstructions.AHPValEvaluation.populate(reserve_jobs=True)
 
 # reconstructions.GradientOneReconstruction.fill_recons(split='val')
@@ -200,13 +200,13 @@ reconstructions.AHPValEvaluation.populate(reserve_jobs=True)
 # Populate all test set evaluations for relevant scans
 for dset_id in [5, 6, 7, 11, 12, 13, 14, 15, 16]:
     key = {'dset_id': dset_id, 'ensemble_dset': dset_id}
-    decoding.LinearReconstructions.populate(key)
-    decoding.LinearEvaluation.populate(key)
-    decoding.MLPReconstructions.populate(key)
-    decoding.MLPEvaluation.populate(key)
-    decoding.DeconvReconstructions.populate(key)
-    decoding.DeconvEvaluation.populate(key)
-    decoding.GaborReconstructions.populate(key)
-    decoding.GaborEvaluation.populate(key)
-    reconstructions.AHPReconstructions.populate(key)
-    reconstructions.AHPEvaluation.populate(key)
+    decoding.LinearReconstructions.populate(key, reserve_jobs=True)
+    decoding.LinearEvaluation.populate(key, reserve_jobs=True)
+    decoding.MLPReconstructions.populate(key, reserve_jobs=True)
+    decoding.MLPEvaluation.populate(key, reserve_jobs=True)
+    decoding.DeconvReconstructions.populate(key, reserve_jobs=True)
+    decoding.DeconvEvaluation.populate(key, reserve_jobs=True)
+    decoding.GaborReconstructions.populate(key, reserve_jobs=True)
+    decoding.GaborEvaluation.populate(key, reserve_jobs=True)
+    reconstructions.AHPReconstructions.populate(key, reserve_jobs=True)
+    reconstructions.AHPEvaluation.populate(key, reserve_jobs=True)
