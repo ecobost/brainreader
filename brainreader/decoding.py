@@ -113,6 +113,25 @@ class LinearValEvaluation(dj.Computed):
 
 
 @schema
+class LinearValBestModel(dj.Computed):
+    definition = """ # best model for each scan using val_ssim as metric
+    
+    -> data.Responses
+    -> params.DataParams
+    ---
+    -> LinearModel
+    """
+    @property
+    def key_source(self):
+        return data.Responses * params.DataParams & LinearValEvaluation
+
+    def make(self, key):
+        keys, ssims = (LinearValEvaluation & key).fetch('KEY', 'val_ssim')
+        best_model = keys[np.argmax(ssims)]
+        self.insert1(best_model)
+
+
+@schema
 class LinearReconstructions(dj.Computed):
     definition = """ # reconstructions for test set images (activity averaged across repeats)
     
@@ -197,6 +216,26 @@ class LinearEvaluation(dj.Computed):
         self.insert1({**key, 'test_mse': mse, 'test_corr': corr, 'test_psnr': psnr,
                       'test_ssim': ssim, 'test_pixel_mse': pixel_mse,
                       'test_pixel_corr': pixel_corr})
+
+
+@schema
+class LinearTestBestModel(dj.Computed):
+    definition = """ # best model for each scan using test_ssim as metric
+    
+    -> data.Responses
+    -> params.DataParams
+    ---
+    -> LinearModel
+    """
+
+    @property
+    def key_source(self):
+        return data.Responses * params.DataParams & LinearEvaluation
+
+    def make(self, key):
+        keys, ssims = (LinearEvaluation & key).fetch('KEY', 'test_ssim')
+        best_model = keys[np.argmax(ssims)]
+        self.insert1(best_model)
 
 
 ########################## MLP ##########################################################
@@ -429,6 +468,26 @@ class MLPValEvaluation(dj.Computed):
 
 
 @schema
+class MLPValBestModel(dj.Computed):
+    definition = """ # best model for each scan using val_ssim as metric
+    
+    -> data.Responses
+    -> params.DataParams
+    ---
+    -> MLPModel
+    """
+
+    @property
+    def key_source(self):
+        return data.Responses * params.DataParams & MLPValEvaluation
+
+    def make(self, key):
+        keys, ssims = (MLPValEvaluation & key).fetch('KEY', 'val_ssim')
+        best_model = keys[np.argmax(ssims)]
+        self.insert1(best_model)
+
+
+@schema
 class MLPReconstructions(dj.Computed):
     definition = """ # reconstructions for test set images (activity averaged across repeats)
     
@@ -520,6 +579,26 @@ class MLPEvaluation(dj.Computed):
             **key, 'test_mse': mse, 'test_corr': corr, 'test_psnr': psnr,
             'test_ssim': ssim, 'test_pixel_mse': pixel_mse,
             'test_pixel_corr': pixel_corr})
+
+
+@schema
+class MLPTestBestModel(dj.Computed):
+    definition = """ # best model for each scan using test_ssim as metric
+    
+    -> data.Responses
+    -> params.DataParams
+    ---
+    -> MLPModel
+    """
+
+    @property
+    def key_source(self):
+        return data.Responses * params.DataParams & MLPEvaluation
+
+    def make(self, key):
+        keys, ssims = (MLPEvaluation & key).fetch('KEY', 'test_ssim')
+        best_model = keys[np.argmax(ssims)]
+        self.insert1(best_model)
 
 
 ################################ Deconvolution network #################################
@@ -764,6 +843,26 @@ class DeconvValEvaluation(dj.Computed):
 
 
 @schema
+class DeconvValBestModel(dj.Computed):
+    definition = """ # best model for each scan using val_ssim as metric
+    
+    -> data.Responses
+    -> params.DataParams
+    ---
+    -> DeconvModel
+    """
+
+    @property
+    def key_source(self):
+        return data.Responses * params.DataParams & DeconvValEvaluation
+
+    def make(self, key):
+        keys, ssims = (DeconvValEvaluation & key).fetch('KEY', 'val_ssim')
+        best_model = keys[np.argmax(ssims)]
+        self.insert1(best_model)
+
+
+@schema
 class DeconvReconstructions(dj.Computed):
     definition = """ # reconstructions for test set images (activity averaged across repeats)
 
@@ -853,6 +952,26 @@ class DeconvEvaluation(dj.Computed):
             **key, 'test_mse': mse, 'test_corr': corr, 'test_psnr': psnr,
             'test_ssim': ssim, 'test_pixel_mse': pixel_mse,
             'test_pixel_corr': pixel_corr})
+
+
+@schema
+class DeconvTestBestModel(dj.Computed):
+    definition = """ # best model for each scan using test_ssim as metric
+    
+    -> data.Responses
+    -> params.DataParams
+    ---
+    -> DeconvModel
+    """
+
+    @property
+    def key_source(self):
+        return data.Responses * params.DataParams & DeconvEvaluation
+
+    def make(self, key):
+        keys, ssims = (DeconvEvaluation & key).fetch('KEY', 'test_ssim')
+        best_model = keys[np.argmax(ssims)]
+        self.insert1(best_model)
 
 
 ################################## Gabor decoding #######################################
@@ -973,6 +1092,25 @@ class GaborValEvaluation(dj.Computed):
 
 
 @schema
+class GaborValBestModel(dj.Computed):
+    definition = """ # best model for each scan using val_ssim as metric
+    
+    -> data.Responses
+    -> params.DataParams
+    ---
+    -> GaborModel
+    """
+
+    @property
+    def key_source(self):
+        return data.Responses * params.DataParams & GaborValEvaluation
+
+    def make(self, key):
+        keys, ssims = (GaborValEvaluation & key).fetch('KEY', 'val_ssim')
+        best_model = keys[np.argmax(ssims)]
+        self.insert1(best_model)
+
+@ schema
 class GaborReconstructions(dj.Computed):
     definition = """ # reconstructions for test set images (activity averaged across repeats)
     
@@ -1061,6 +1199,26 @@ class GaborEvaluation(dj.Computed):
             **key, 'test_mse': mse, 'test_corr': corr, 'test_psnr': psnr,
             'test_ssim': ssim, 'test_pixel_mse': pixel_mse,
             'test_pixel_corr': pixel_corr})
+
+
+@schema
+class GaborTestBestModel(dj.Computed):
+    definition = """ # best model for each scan using test_ssim as metric
+    
+    -> data.Responses
+    -> params.DataParams
+    ---
+    -> GaborModel
+    """
+
+    @property
+    def key_source(self):
+        return data.Responses * params.DataParams & GaborEvaluation
+
+    def make(self, key):
+        keys, ssims = (GaborEvaluation & key).fetch('KEY', 'test_ssim')
+        best_model = keys[np.argmax(ssims)]
+        self.insert1(best_model)
 
 
 #TODO: Evaluate by comparing to the reconstructed image too (i..e, reconstruct the image with the gabor bank and correlate to that)

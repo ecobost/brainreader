@@ -193,6 +193,25 @@ class AHPValEvaluation(dj.Computed):
 
 
 @schema
+class AHPValBestModel(dj.Computed):
+    definition = """ # best model for each scan using val_ssim as metric
+    
+    -> ModelResponses
+    ---
+    -> AHPValEvaluation
+    """
+
+    @property
+    def key_source(self):
+        return ModelResponses & AHPValEvaluation
+
+    def make(self, key):
+        keys, ssims = (AHPValEvaluation & key).fetch('KEY', 'val_ssim')
+        best_model = keys[np.argmax(ssims)]
+        self.insert1(best_model)
+
+
+@schema
 class AHPReconstructions(dj.Computed):
     definition = """ # reconstructions for test set images (activity averaged across repeats)
 
@@ -342,6 +361,25 @@ class AHPEvaluation(dj.Computed):
             **key, 'test_mse': mse, 'test_corr': corr, 'test_psnr': psnr,
             'test_ssim': ssim, 'test_pixel_mse': pixel_mse,
             'test_pixel_corr': pixel_corr})
+
+
+@schema
+class AHPTestBestModel(dj.Computed):
+    definition = """ # best model for each scan using test_ssim as metric
+    
+    -> ModelResponses
+    ---
+    -> AHPEvaluation
+    """
+
+    @property
+    def key_source(self):
+        return ModelResponses & AHPEvaluation
+
+    def make(self, key):
+        keys, ssims = (AHPEvaluation & key).fetch('KEY', 'test_ssim')
+        best_model = keys[np.argmax(ssims)]
+        self.insert1(best_model)
 
 
 ################################ GRADIENT BASED #########################################
