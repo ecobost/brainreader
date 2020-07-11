@@ -198,7 +198,7 @@ reconstructions.AHPValEvaluation.populate(reserve_jobs=True)
 
 
 # Populate all test set evaluations for relevant scans
-for dset_id in [5, 6, 7, 11, 12, 13, 14, 15, 16]:
+for dset_id in [5, 6, 7, 11, 12, 13, 14, 15, 16, 17, 18]:
     key = {'dset_id': dset_id, 'ensemble_dset': dset_id}
     decoding.LinearReconstructions.populate(key, reserve_jobs=True)
     decoding.LinearEvaluation.populate(key, reserve_jobs=True)
