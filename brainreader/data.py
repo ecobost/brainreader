@@ -43,6 +43,10 @@ scans = [
     #{'animal_id': 23964, 'session': 3, 'scan_idx': 15}, # water run out for last 10% of scan (~660 trials)
     
     {'animal_id': 23946, 'session': 3, 'scan_idx': 10}, # "eye wasn't super great" -Taliah
+    
+    # closed loop
+    {'animal_id': 23964, 'session': 13, 'scan_idx': 10}, # day 1, 25 um deeper than 13-11 
+    {'animal_id': 23964, 'session': 13, 'scan_idx': 11}, # day 1
     ]
 
 @schema
