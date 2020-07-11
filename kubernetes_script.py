@@ -172,11 +172,11 @@
 
 
 # Populate models for all scans
-# from brainreader.encoding import train
-# train.TrainedModel.populate(reserve_jobs=True)
-# train.Evaluation.populate(reserve_jobs=True)
-# train.Ensemble.populate(reserve_jobs=True)
-# train.EnsembleEvaluation.populate(reserve_jobs=True)
+from brainreader.encoding import train
+train.TrainedModel.populate(reserve_jobs=True)
+train.Evaluation.populate(reserve_jobs=True)
+train.Ensemble.populate(reserve_jobs=True)
+train.EnsembleEvaluation.populate(reserve_jobs=True)
 
 from brainreader import decoding
 decoding.LinearModel.populate(reserve_jobs=True)
