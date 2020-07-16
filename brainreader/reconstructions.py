@@ -34,6 +34,10 @@ class BestEnsemble(dj.Lookup):
             'ensemble_training': 1, 'ensemble_params': 1}
 
 
+# Set params
+selected_dsets = 'ensemble_dset in (5, 6, 7, 11, 12, 13, 14, 15, 16, 17, 18)'
+
+
 ###############################Averaged high posterior ##################################
 """ Gallant decoding. 
 
@@ -380,6 +384,31 @@ class AHPTestBestModel(dj.Computed):
         keys, ssims = (AHPEvaluation & key).fetch('KEY', 'test_ssim')
         best_model = keys[np.argmax(ssims)]
         self.insert1(best_model)
+
+
+@schema
+class AHPBestModelByOthers(dj.Computed):
+    definition = """ # pick the best parameters out of all best test models (that are not from the same animal)
+    
+    -> ModelResponses
+    ---
+    -> AHPEvaluation
+    """
+
+    @property
+    def key_source(self):
+        return ModelResponses & AHPEvaluation & selected_dsets
+
+    def make(self, key):
+        from scipy import stats
+
+        # Find best params
+        animal_id = (data.Scan & {'dset_id': key['ensemble_dset']}).fetch1('animal_id')
+        all_params = (AHPTestBestModel & selected_dsets &
+                      (data.Scan.proj('animal_id', ensemble_dset='dset_id') -
+                       {'animal_id': animal_id})).fetch('ahp_params')
+        best_params = stats.mode(all_params)[0][0]
+        self.insert1({**key, 'ahp_params': best_params})
 
 
 ################################ GRADIENT BASED #########################################

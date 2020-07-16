@@ -14,6 +14,9 @@ dj.config['stores'] = {
     'brdata': {'protocol': 'file', 'location': '/mnt/scratch07/ecobost'}, }
 dj.config['cache'] = '/tmp'
 
+# Set some params
+selected_dsets = 'dset_id in (5, 6, 7, 11, 12, 13, 14, 15, 16, 17, 18)' # this are all the final datasets I will report results on
+
 
 ################################# Linear decoding #######################################
 @schema
@@ -236,6 +239,30 @@ class LinearTestBestModel(dj.Computed):
         keys, ssims = (LinearEvaluation & key).fetch('KEY', 'test_ssim')
         best_model = keys[np.argmax(ssims)]
         self.insert1(best_model)
+
+
+@schema
+class LinearBestModelByOthers(dj.Computed):
+    definition = """ # pick the best parameters out of all best test models (that are not from the same animal)
+    
+    -> data.Responses
+    -> params.DataParams
+    ---
+    -> LinearModel
+    """
+    @property
+    def key_source(self):
+        return data.Responses * params.DataParams & LinearEvaluation & selected_dsets
+
+    def make(self, key):
+        from scipy import stats
+
+        # Find best params
+        animal_id = (data.Scan & key).fetch1('animal_id')
+        all_params = (LinearTestBestModel & selected_dsets &
+                      (data.Scan - {'animal_id': animal_id})).fetch('linear_params')
+        best_params = stats.mode(all_params)[0][0]
+        self.insert1({**key, 'linear_params': best_params})
 
 
 ########################## MLP ##########################################################
@@ -599,6 +626,31 @@ class MLPTestBestModel(dj.Computed):
         keys, ssims = (MLPEvaluation & key).fetch('KEY', 'test_ssim')
         best_model = keys[np.argmax(ssims)]
         self.insert1(best_model)
+
+
+@schema
+class MLPBestModelByOthers(dj.Computed):
+    definition = """ # pick the best parameters out of all best test models (that are not from the same animal)
+    
+    -> data.Responses
+    -> params.DataParams
+    ---
+    -> MLPModel
+    """
+
+    @property
+    def key_source(self):
+        return data.Responses * params.DataParams & MLPEvaluation & selected_dsets
+
+    def make(self, key):
+        from scipy import stats
+
+        # Find best params
+        animal_id = (data.Scan & key).fetch1('animal_id')
+        all_params = (MLPTestBestModel & selected_dsets &
+                      (data.Scan - {'animal_id': animal_id})).fetch('mlp_params')
+        best_params = stats.mode(all_params)[0][0]
+        self.insert1({**key, 'mlp_params': best_params})
 
 
 ################################ Deconvolution network #################################
@@ -974,6 +1026,31 @@ class DeconvTestBestModel(dj.Computed):
         self.insert1(best_model)
 
 
+@schema
+class DeconvBestModelByOthers(dj.Computed):
+    definition = """ # pick the best parameters out of all best test models (that are not from the same animal)
+    
+    -> data.Responses
+    -> params.DataParams
+    ---
+    -> DeconvModel
+    """
+
+    @property
+    def key_source(self):
+        return data.Responses * params.DataParams & DeconvEvaluation & selected_dsets
+
+    def make(self, key):
+        from scipy import stats      
+
+        # Find best params
+        animal_id = (data.Scan & key).fetch1('animal_id')
+        all_params = (DeconvTestBestModel & selected_dsets &
+                      (data.Scan - {'animal_id': animal_id})).fetch('deconv_params')
+        best_params = stats.mode(all_params)[0][0]
+        self.insert1({**key, 'deconv_params': best_params})
+
+
 ################################## Gabor decoding #######################################
 """ Linearly predict weights for a dictionary of gabor filters that are linearly combined 
 to produce the reconstruction. Based on Yoshida et Okhi, 2020. """
@@ -1219,6 +1296,31 @@ class GaborTestBestModel(dj.Computed):
         keys, ssims = (GaborEvaluation & key).fetch('KEY', 'test_ssim')
         best_model = keys[np.argmax(ssims)]
         self.insert1(best_model)
+
+
+@schema
+class GaborBestModelByOthers(dj.Computed):
+    definition = """ # pick the best parameters out of all best test models (that are not from the same animal)
+    
+    -> data.Responses
+    -> params.DataParams
+    ---
+    -> GaborModel
+    """
+
+    @property
+    def key_source(self):
+        return data.Responses * params.DataParams & GaborEvaluation & selected_dsets
+
+    def make(self, key):
+        from scipy import stats
+
+        # Find best params
+        animal_id = (data.Scan & key).fetch1('animal_id')
+        all_params = (GaborTestBestModel & selected_dsets &
+                      (data.Scan - {'animal_id': animal_id})).fetch('gabor_params')
+        best_params = stats.mode(all_params)[0][0]
+        self.insert1({**key, 'gabor_params': best_params})
 
 
 #TODO: Evaluate by comparing to the reconstructed image too (i..e, reconstruct the image with the gabor bank and correlate to that)
