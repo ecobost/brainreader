@@ -50,7 +50,7 @@ class Digits(dj.Manual):
         stimulus = dj.create_virtual_module('stimulus', 'pipeline_stimulus')
 
         # Fetch images
-        images, image_ids = self.fetch('image', 'mnist_id')
+        images, image_ids, labels = self.fetch('image', 'mnist_id', 'label')
 
         # Process them
         processed = []
@@ -68,6 +68,10 @@ class Digits(dj.Manual):
         rows = [{'image_class': 'mnist', 'image_id': id_, 'image': im} for id_, im in
                 zip(image_ids, processed)]
         stimulus.StaticImage.Image.insert(rows)
+        info = [{'image_class': 'mnist', 'image_id': id_, 'mnist_id': id_, 
+                 'label': label, 'src_table': 'brainreader.mnist.Digits'} for 
+                id_, label in zip(image_ids, labels)]
+        stimulus.StaticImage.MNIST.insert(info)
 
 
 #TODO: Maybe move to brainreader.utils
