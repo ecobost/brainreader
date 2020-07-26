@@ -23,7 +23,7 @@ class BestEnsemble(dj.Lookup):
     """
     @property
     def contents(self):
-        for i in [*range(1, 9), *range(11, 19)]:
+        for i in [*range(1, 9), *range(11, 21)]:
             yield {'ensemble_dset': i, 'ensemble_data': 2, 'ensemble_model': 12,
                    'ensemble_training': 7, 'ensemble_params': 1}
         yield {
