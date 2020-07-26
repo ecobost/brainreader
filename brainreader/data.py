@@ -47,6 +47,10 @@ scans = [
     # closed loop
     {'animal_id': 23964, 'session': 13, 'scan_idx': 10}, # day 1, 25 um deeper than 13-11 
     {'animal_id': 23964, 'session': 13, 'scan_idx': 11}, # day 1
+    
+    # closed loop 2
+    {'animal_id': 24391, 'session': 6, 'scan_idx': 17}, # day 1 
+    {'animal_id': 24391, 'session': 6, 'scan_idx': 18}, # day 1, 30 um deeper
     ]
 
 @schema
