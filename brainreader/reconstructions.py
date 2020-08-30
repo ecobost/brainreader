@@ -35,7 +35,7 @@ class BestEnsemble(dj.Lookup):
 
 
 # Set params
-selected_dsets = 'ensemble_dset in (5, 6, 7, 11, 12, 13, 14, 15, 16, 17, 18)'
+selected_dsets = 'ensemble_dset in (5, 6, 7, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22)'
 
 
 ###############################Averaged high posterior ##################################
