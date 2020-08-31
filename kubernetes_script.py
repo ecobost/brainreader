@@ -193,7 +193,8 @@ from brainreader import reconstructions
 # # reconstructions.ModelResponses.populate(reserve_jobs=True) # needs to be done only once per dset
 # reconstructions.AHPValEvaluation.populate(reserve_jobs=True)
 
-# # reconstructions.GradientOneReconstruction.fill_recons(split='val')
+reconstructions.GradientOneReconstruction.fill_recons({'dset_id': 4, 'ensemble_dset': 4}, split='test')
+reconstructions.GradientOneReconstruction.fill_recons({'dset_id': 5, 'ensemble_dset': 5}, split='test')
 reconstructions.GradientValEvaluation.populate(reserve_jobs=True)
 reconstructions.GradientEvaluation.populate(reserve_jobs=True)
 
