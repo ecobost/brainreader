@@ -171,42 +171,43 @@
 # reconstructions.GradientValEvaluation.populate({'ensemble_dset': 4}, reserve_jobs=True)
 
 
-# Populate models for all scans
-from brainreader.encoding import train
-train.TrainedModel.populate(reserve_jobs=True)
-train.Evaluation.populate(reserve_jobs=True)
-train.Ensemble.populate(reserve_jobs=True)
-train.EnsembleEvaluation.populate(reserve_jobs=True)
+# # Populate models for all scans
+# from brainreader.encoding import train
+# train.TrainedModel.populate(reserve_jobs=True)
+# train.Evaluation.populate(reserve_jobs=True)
+# train.Ensemble.populate(reserve_jobs=True)
+# train.EnsembleEvaluation.populate(reserve_jobs=True)
 
-from brainreader import decoding
-decoding.LinearModel.populate(reserve_jobs=True)
-decoding.LinearValEvaluation.populate(reserve_jobs=True)
-decoding.MLPModel.populate(reserve_jobs=True)
-decoding.MLPValEvaluation.populate(reserve_jobs=True)
-decoding.DeconvModel.populate(reserve_jobs=True)
-decoding.DeconvValEvaluation.populate(reserve_jobs=True)
-decoding.GaborModel.populate(reserve_jobs=True)
-decoding.GaborValEvaluation.populate(reserve_jobs=True)
+# from brainreader import decoding
+# decoding.LinearModel.populate(reserve_jobs=True)
+# decoding.LinearValEvaluation.populate(reserve_jobs=True)
+# decoding.MLPModel.populate(reserve_jobs=True)
+# decoding.MLPValEvaluation.populate(reserve_jobs=True)
+# decoding.DeconvModel.populate(reserve_jobs=True)
+# decoding.DeconvValEvaluation.populate(reserve_jobs=True)
+# decoding.GaborModel.populate(reserve_jobs=True)
+# decoding.GaborValEvaluation.populate(reserve_jobs=True)
 
 from brainreader import reconstructions
-# Use val_corr in EnsembleEvaluation to add an entry in reconstructions.BestEnsemble
-reconstructions.ModelResponses.populate(reserve_jobs=True) # needs to be done only once per dset
-reconstructions.AHPValEvaluation.populate(reserve_jobs=True)
+# # Use val_corr in EnsembleEvaluation to add an entry in reconstructions.BestEnsemble
+# # reconstructions.ModelResponses.populate(reserve_jobs=True) # needs to be done only once per dset
+# reconstructions.AHPValEvaluation.populate(reserve_jobs=True)
 
-# reconstructions.GradientOneReconstruction.fill_recons(split='val')
-# reconstructions.GradientValEvaluation.populate(reserve_jobs=True)
+# # reconstructions.GradientOneReconstruction.fill_recons(split='val')
+reconstructions.GradientValEvaluation.populate(reserve_jobs=True)
+reconstructions.GradientEvaluation.populate(reserve_jobs=True)
 
 
-# Populate all test set evaluations for relevant scans
-for dset_id in [21, 22]:#[5, 6, 7, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20]:
-    key = {'dset_id': dset_id, 'ensemble_dset': dset_id}
-    decoding.LinearReconstructions.populate(key, reserve_jobs=True)
-    decoding.LinearEvaluation.populate(key, reserve_jobs=True)
-    decoding.MLPReconstructions.populate(key, reserve_jobs=True)
-    decoding.MLPEvaluation.populate(key, reserve_jobs=True)
-    decoding.DeconvReconstructions.populate(key, reserve_jobs=True)
-    decoding.DeconvEvaluation.populate(key, reserve_jobs=True)
-    decoding.GaborReconstructions.populate(key, reserve_jobs=True)
-    decoding.GaborEvaluation.populate(key, reserve_jobs=True)
-    reconstructions.AHPReconstructions.populate(key, reserve_jobs=True)
-    reconstructions.AHPEvaluation.populate(key, reserve_jobs=True)
+# # Populate all test set evaluations for relevant scans
+# for dset_id in [21, 22]:#[5, 6, 7, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20]:
+#     key = {'dset_id': dset_id, 'ensemble_dset': dset_id}
+#     decoding.LinearReconstructions.populate(key, reserve_jobs=True)
+#     decoding.LinearEvaluation.populate(key, reserve_jobs=True)
+#     decoding.MLPReconstructions.populate(key, reserve_jobs=True)
+#     decoding.MLPEvaluation.populate(key, reserve_jobs=True)
+#     decoding.DeconvReconstructions.populate(key, reserve_jobs=True)
+#     decoding.DeconvEvaluation.populate(key, reserve_jobs=True)
+#     decoding.GaborReconstructions.populate(key, reserve_jobs=True)
+#     decoding.GaborEvaluation.populate(key, reserve_jobs=True)
+#     reconstructions.AHPReconstructions.populate(key, reserve_jobs=True)
+#     reconstructions.AHPEvaluation.populate(key, reserve_jobs=True)
