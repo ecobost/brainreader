@@ -15,7 +15,7 @@ dj.config['stores'] = {
 dj.config['cache'] = '/tmp'
 
 # Set some params
-selected_dsets = 'dset_id in (5, 6, 7, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22)' # this are all the final datasets I will report results on
+selected_dsets = 'dset_id in (5, 6, 7, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22)' # these are all the final datasets I will report results on
 
 
 ################################# Linear decoding #######################################
